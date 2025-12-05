@@ -1,0 +1,81 @@
+import uuid
+from datetime import UTC, datetime
+
+import sqlalchemy as sa
+import sqlalchemy.orm as so
+from sqlalchemy.dialects.postgresql import JSONB
+
+from app.core.database import Base
+
+
+class RasterStats(Base):
+    """Raw statistics from satellite imagery processing"""
+
+    __tablename__ = "raster_stats"
+
+    uid: so.Mapped[str] = so.mapped_column(
+        sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+
+    field_id: so.Mapped[str] = so.mapped_column(
+        sa.String(36),
+        sa.ForeignKey("fields.uid", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # When was this data acquired?
+    acquisition_date: so.Mapped[datetime] = so.mapped_column(
+        sa.Date,
+        nullable=False,
+        index=True,  # Index for time-range queries
+    )
+
+    # Which satellite?
+    satellite_source: so.Mapped[str] = so.mapped_column(
+        sa.String(50), nullable=False, comment="sentinel-2-l2a, landsat-8"
+    )
+
+    # What metric is this?
+    metric_type: so.Mapped[str] = so.mapped_column(
+        sa.String(50), nullable=False, comment="NDVI, EVI, NDMI, SAVI, LAI"
+    )
+
+    # The actual statistics
+    mean_value: so.Mapped[float] = so.mapped_column(
+        sa.Numeric(10, 6),  # 6 decimal places for precision
+        nullable=False,
+    )
+    min_value: so.Mapped[float] = so.mapped_column(sa.Numeric(10, 6))
+    max_value: so.Mapped[float] = so.mapped_column(sa.Numeric(10, 6))
+    std_dev: so.Mapped[float | None] = so.mapped_column(sa.Numeric(10, 6))
+
+    # Data quality info
+    cloud_cover_percent: so.Mapped[float | None] = so.mapped_column(
+        sa.Numeric(5, 2),  # 0.00 to 100.00
+        comment="Percentage of cloud cover in the image",
+    )
+    pixel_count: so.Mapped[int | None] = so.mapped_column(
+        sa.Integer, comment="Number of valid pixels processed"
+    )
+
+    # Processing metadata
+    processed_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime, default=datetime.now(UTC), nullable=False
+    )
+
+    # Optional: store raw response for debugging
+    raw_metadata: so.Mapped[dict | None] = so.mapped_column(
+        JSONB, comment="Store full Sentinel Hub response for debugging"
+    )
+
+    # Relationships
+    field: so.Mapped["Field"] = so.relationship(back_populates="raster_stats")  # noqa
+
+    # Composite unique constraint - prevent duplicate entries
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "field_id", "acquisition_date", "metric_type", name="uq_field_date_index"
+        ),
+        sa.Index("idx_raster_field_date", "field_id", "acquisition_date"),
+    )
