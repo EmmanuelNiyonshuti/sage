@@ -19,9 +19,9 @@ class Alerts(Base):
     )
 
     # Foreign key
-    field_id: so.Mapped[str] = so.mapped_column(
+    parcel_id: so.Mapped[str] = so.mapped_column(
         sa.String(36),
-        sa.ForeignKey("fields.uid", ondelete="CASCADE"),
+        sa.ForeignKey("parcels.uid", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -60,9 +60,9 @@ class Alerts(Base):
     )
 
     # Relationships
-    field: so.Mapped["Field"] = so.relationship(back_populates="alerts")  # noqa 821
+    parcel: so.Mapped["Parcel"] = so.relationship(back_populates="alerts")  # noqa 821
 
     __table_args__ = (
         sa.Index("idx_alerts_status", "status"),
-        sa.Index("idx_alerts_field_status", "field_id", "status"),
+        sa.Index("idx_alerts_parcel_status", "parcel_id", "status"),
     )

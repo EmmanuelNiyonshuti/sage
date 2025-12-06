@@ -9,7 +9,10 @@ class BaseConfig(BaseSettings):
 
 
 class GlobalConfig(BaseConfig):
-    DATABASE_URL: str | None = "sqlite:///sg_dev.db"
+    DATABASE_URL: str | None = None
+    SENTINEL_HUB_BASE_URL: str | None = None
+    SENTINEL_HUB_CLIENT_ID: str | None = None
+    SENTINEL_HUB_CLIENT_SECRET: str | None = None
 
 
 class DevConfig(GlobalConfig):
@@ -17,7 +20,7 @@ class DevConfig(GlobalConfig):
 
 
 class TestConfig(GlobalConfig):
-    DATABASE_URL: str = "sqlite:///sg_dev.db"
+    DATABASE_URL: str = "sqlite:///:memory"
     model_config = SettingsConfigDict(env_prefix="TEST_")
 
 

@@ -1,6 +1,6 @@
 from .alerts import Alerts
-from .field import Field
+from .parcel import Parcel
 from .raster_stats import RasterStats
 from .time_series import TimeSeries
 
-__all__ = ["Field", "RasterStats", "TimeSeries", "Alerts"]
+__all__ = ["Parcel", "RasterStats", "TimeSeries", "Alerts"]

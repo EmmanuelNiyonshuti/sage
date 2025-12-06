@@ -17,9 +17,9 @@ class RasterStats(Base):
         sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
 
-    field_id: so.Mapped[str] = so.mapped_column(
+    parcel_id: so.Mapped[str] = so.mapped_column(
         sa.String(36),
-        sa.ForeignKey("fields.uid", ondelete="CASCADE"),
+        sa.ForeignKey("parcels.uid", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -70,12 +70,12 @@ class RasterStats(Base):
     )
 
     # Relationships
-    field: so.Mapped["Field"] = so.relationship(back_populates="raster_stats")  # noqa
+    parcel: so.Mapped["Parcel"] = so.relationship(back_populates="raster_stats")  # noqa
 
     # Composite unique constraint - prevent duplicate entries
     __table_args__ = (
         sa.UniqueConstraint(
-            "field_id", "acquisition_date", "metric_type", name="uq_field_date_index"
+            "parcel_id", "acquisition_date", "metric_type", name="uq_parcel_date_index"
         ),
-        sa.Index("idx_raster_field_date", "field_id", "acquisition_date"),
+        sa.Index("idx_raster_parcel_date", "parcel_id", "acquisition_date"),
     )

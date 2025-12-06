@@ -18,9 +18,9 @@ class TimeSeries(Base):
     )
 
     # Foreign key
-    field_id: so.Mapped[str] = so.mapped_column(
+    parcel_id: so.Mapped[str] = so.mapped_column(
         sa.String(36),
-        sa.ForeignKey("fields.uid", ondelete="CASCADE"),
+        sa.ForeignKey("parcels.uid", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -64,16 +64,16 @@ class TimeSeries(Base):
     )
 
     # Relationships
-    field: so.Mapped["Field"] = so.relationship(back_populates="time_series")  # noqa
+    parcel: so.Mapped["parcel"] = so.relationship(back_populates="time_series")  # noqa
 
-    # Unique constraint - one record per field/metric/period/date
+    # Unique constraint - one record per parcel/metric/period/date
     __table_args__ = (
         sa.UniqueConstraint(
-            "field_id",
+            "parcel_id",
             "metric_type",
             "time_period",
             "start_date",
-            name="uq_timeseries_field_metric_period_date",
+            name="uq_timeseries_parcel_metric_period_date",
         ),
-        sa.Index("idx_timeseries_field_dates", "field_id", "start_date", "end_date"),
+        sa.Index("idx_timeseries_parcel_dates", "parcel_id", "start_date", "end_date"),
     )

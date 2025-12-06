@@ -66,3 +66,30 @@ The pipeline:
 raster_stats: "What did we observe on specific dates?"
 time_series: "What are the trends over time?"
 alerts: "What needs attention?" -->
+
+
+
+
+---
+
+## **Why This Service Design?**
+
+### **Clear Separation of Concerns**
+```
+┌─────────────────────────────────────┐
+│   FastAPI Route/Endpoint            │  ← User interface
+│   (handles HTTP, validation)        │
+└──────────────┬──────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────┐
+│   IngestionService                  │
+│   (orchestrates workflow)           │
+└──────────────┬──────────────────────┘
+               │
+      ┌────────┴────────┐
+      ▼                 ▼
+┌─────────────┐   ┌──────────────┐
+│  Database   │   │ SentinelHub  │
+│  (SQLAlch.) │   │ Client       │
+└─────────────┘   └──────────────┘

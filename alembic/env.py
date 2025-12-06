@@ -1,35 +1,46 @@
-import os
+import logging
+import sys
 from logging.config import fileConfig
 
-from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
+from app.core.config import config as app_config
 from app.core.database import Base
 
-load_dotenv()
-
-# this is the Alembic Config object, which provides
-# access to the values within the alembic.ini file in use(it is in the root dir 🫚).
+# this is the Alembic Config object
 config = context.config
 
-if os.path.exists(".env") and os.getenv("DATABASE_URL") is not None:
-    db_url = os.getenv("DATABASE_URL")
-else:
-    db_url = "sqlite:///sg_dev.db"
-
-config.set_main_option(
-    "sqlalchemy.url", db_url
-)  # override whatever sqlalchemy.url is in .ini file🚵‍♀️
-
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+logger = logging.getLogger("alembic.env")
+
+# Validate DATABASE_URI before proceeding
+try:
+    db_url = app_config.DATABASE_URL
+    if not db_url:
+        raise ValueError("DATABASE_URI is not set in application configuration")
+
+    config.set_main_option("sqlalchemy.url", db_url)
+    logger.info("Database URL configured successfully")
+
+except AttributeError as e:
+    logger.error("DATABASE_URI attribute not found in app configuration")
+    logger.error(f"Error details: {str(e)}", exc_info=True)
+    sys.exit(1)
+except ValueError as e:
+    logger.error(f"Configuration Error: {str(e)}")
+    sys.exit(1)
+except Exception as e:
+    logger.error(
+        f"Unexpected error while configuring database: {str(e)}", exc_info=True
+    )
+    sys.exit(1)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from app.models import *
+from app.models import *  # noqa
 
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata

@@ -8,10 +8,10 @@ from geoalchemy2 import Geometry
 from app.core.database import Base
 
 
-class Field(Base):
-    """Represents a farm/field entity"""
+class Parcel(Base):
+    """Represents a land parcel entity"""
 
-    __tablename__ = "fields"
+    __tablename__ = "parcels"
 
     uid: so.Mapped[str] = so.mapped_column(
         sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
@@ -55,16 +55,16 @@ class Field(Base):
 
     # Status
     is_active: so.Mapped[bool] = so.mapped_column(
-        sa.Boolean, default=True, comment="Whether to actively monitor this field"
+        sa.Boolean, default=True, comment="Whether to actively monitor this parcel"
     )
 
     # Relationships
     raster_stats: so.Mapped[list["RasterStats"]] = so.relationship(  # noqa: F821
-        back_populates="field", cascade="all, delete-orphan"
+        back_populates="parcel", cascade="all, delete-orphan"
     )
     time_series: so.Mapped[list["TimeSeries"]] = so.relationship(  # noqa: F821
-        back_populates="field", cascade="all, delete-orphan"
+        back_populates="parcel", cascade="all, delete-orphan"
     )
-    alerts: so.Mapped[list["Alert"]] = so.relationship(  # noqa: F821
-        back_populates="field", cascade="all, delete-orphan"
+    alerts: so.Mapped[list["Alerts"]] = so.relationship(  # noqa: F821
+        back_populates="parcel", cascade="all, delete-orphan"
     )
