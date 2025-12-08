@@ -76,20 +76,34 @@ alerts: "What needs attention?" -->
 
 ### **Clear Separation of Concerns**
 ```
-┌─────────────────────────────────────┐
-│   FastAPI Route/Endpoint            │  ← User interface
-│   (handles HTTP, validation)        │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────┐
-│   IngestionService                  │
-│   (orchestrates workflow)           │
-└──────────────┬──────────────────────┘
-               │
-      ┌────────┴────────┐
-      ▼                 ▼
-┌─────────────┐   ┌──────────────┐
-│  Database   │   │ SentinelHub  │
-│  (SQLAlch.) │   │ Client       │
-└─────────────┘   └──────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                    INGESTION ENGINE                          │
+│  (Background Service - Always Running)                       │
+└─────────────────────────────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│  Scheduler   │    │   Workers    │    │ State Store  │
+│              │    │              │    │              │
+│ - Cron jobs  │───▶│ - Fetch data │───▶│ - Last run   │
+│ - Triggers   │    │ - Process    │    │ - Next run   │
+│ - Queue      │    │ - Store      │    │ - Status     │
+└──────────────┘    └──────────────┘    └──────────────┘
+        │                   │                   │
+        └───────────────────┴───────────────────┘
+                            │
+                            ▼
+                  ┌──────────────────┐
+                  │    Database      │
+                  │  raster_stats    │
+                  │  time_series     │
+                  │  alerts          │
+                  └──────────────────┘
+                            │
+                            ▼
+                  ┌──────────────────┐
+                  │   REST API       │
+                  │ (Read-Only Views)│
+                  └──────────────────┘

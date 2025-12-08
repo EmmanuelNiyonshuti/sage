@@ -25,4 +25,5 @@ app = FastAPI(
 
 app.add_middleware(CorrelationIdMiddleware)
 
+
 app.include_router(api_router, prefix="/api")

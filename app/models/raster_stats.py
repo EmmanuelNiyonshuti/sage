@@ -31,12 +31,7 @@ class RasterStats(Base):
         index=True,  # Index for time-range queries
     )
 
-    # Which satellite?
-    satellite_source: so.Mapped[str] = so.mapped_column(
-        sa.String(50), nullable=False, comment="sentinel-2-l2a, landsat-8"
-    )
-
-    # What metric is this?
+    # What metric are we looking for?
     metric_type: so.Mapped[str] = so.mapped_column(
         sa.String(50), nullable=False, comment="NDVI, EVI, NDMI, SAVI, LAI"
     )
@@ -66,11 +61,15 @@ class RasterStats(Base):
 
     # Optional: store raw response for debugging
     raw_metadata: so.Mapped[dict | None] = so.mapped_column(
-        JSONB, comment="Store full Sentinel Hub response for debugging"
+        JSONB, comment="Store full response for debugging"
     )
 
     # Relationships
     parcel: so.Mapped["Parcel"] = so.relationship(back_populates="raster_stats")  # noqa
+    # Which satellite?
+    data_source_id: so.Mapped[str] = so.mapped_column(
+        sa.String(36), sa.ForeignKey("data_sources.uid"), nullable=False, index=True
+    )
 
     # Composite unique constraint - prevent duplicate entries
     __table_args__ = (

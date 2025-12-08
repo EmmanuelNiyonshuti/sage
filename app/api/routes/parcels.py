@@ -1,4 +1,4 @@
-"""API endpoints for field resources."""
+import logging
 
 from fastapi import APIRouter, HTTPException, Query
 from geoalchemy2.shape import from_shape, to_shape
@@ -8,27 +8,27 @@ from app.api.deps import SessionDep
 from app.models import Parcel
 from app.models.schemas import ParcelCreate, ParcelListResponse, ParcelResponse
 
-# from app.schemas.raster_stats import (
-#     IngestRequest,
-#     IngestResponse,
-#     RasterStatsListResponse,
-#     RasterStatsResponse,
-# )
+logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/parcels", tags=["parcels"])
+router = APIRouter(prefix="/parcels", tags=["Land Parcels"])
 
 
 @router.post("/", response_model=ParcelResponse, status_code=201)
-def create_field(parcel_data: ParcelCreate, db: SessionDep):
+def add_parcel(parcel_data: ParcelCreate, db: SessionDep):
     """
-    Create a new parcel with geometry.
+    Create a new farm boundary with polygon coordinates.
 
     The geometry must be a valid GeoJSON Polygon.
     """
     # Convert GeoJSON to Shapely geometry
-    geom_dict = parcel_data.geometry.model_dump()
-    shapely_geom = shape(geom_dict)
-
+    try:
+        geom_dict = parcel_data.geometry.model_dump()
+        shapely_geom = shape(geom_dict)
+    except Exception as e:
+        logger.error(f"Invalid geometry provided: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid geometry format: {str(e)}"
+        )
     # Create parcel
     parcel = Parcel(
         name=parcel_data.name,
@@ -37,30 +37,19 @@ def create_field(parcel_data: ParcelCreate, db: SessionDep):
         soil_type=parcel_data.soil_type,
         irrigation_type=parcel_data.irrigation_type,
     )
+    try:
+        db.add(parcel)
+        db.commit()
+        db.refresh(parcel)
+        logger.info(f"Created parcel: {parcel.uid} - {parcel.name}")
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Database error creating parcel: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Failed to create a parcel. Please try again"
+        )
 
-    db.add(parcel)
-    db.commit()
-    db.refresh(parcel)
-
-    # Convert geometry back to GeoJSON for response
-    shape_obj = to_shape(parcel.geometry)
-    parcel_dict = {
-        "uid": parcel.uid,
-        "name": parcel.name,
-        "geometry": {
-            "type": "Polygon",
-            "coordinates": [list(shape_obj.exterior.coords)],
-        },
-        "area_hectares": parcel.area_hectares,
-        "crop_type": parcel.crop_type,
-        "soil_type": parcel.soil_type,
-        "irrigation_type": parcel.irrigation_type,
-        "is_active": parcel.is_active,
-        "created_at": parcel.created_at,
-        "updated_at": parcel.updated_at,
-    }
-
-    return ParcelResponse(**parcel_dict)
+    return ParcelResponse.model_validate(parcel)
 
 
 @router.get("/", response_model=ParcelListResponse)
@@ -103,8 +92,8 @@ def list_parcels(
 
 
 @router.get("/{parcel_id}", response_model=ParcelResponse)
-def get_field(parcel_id: str, db: SessionDep):
-    """Get a single field by ID."""
+def get_parcel(parcel_id: str, db: SessionDep):
+    """Get a single land parcel by ID."""
     parcel = db.get(Parcel, parcel_id)
 
     if not parcel:
@@ -128,64 +117,3 @@ def get_field(parcel_id: str, db: SessionDep):
     }
 
     return ParcelResponse(**parcel_dict)
-
-
-# @router.post("/{field_id}/ingest", response_model=IngestResponse)
-# def ingest_field_data(
-#     parcel_id: str,
-#     ingest_data: IngestRequest,
-#     db: SessionDep,
-# ):
-#     """
-#     Trigger satellite data ingestion for a field.
-
-#     This will fetch NDVI data from Sentinel Hub for the specified date range.
-#     Note: This operation can take 10-15 seconds.
-#     """
-#     service = IngestionService(db)
-
-#     try:
-#         result = service.ingest_parcel_ndvi(
-#             parcel_id=parcel_id,
-#             start_date=ingest_data.start_date,
-#             end_date=ingest_data.end_date,
-#         )
-#         return IngestResponse(**result)
-#     except ValueError as e:
-#         raise HTTPException(status_code=404, detail=str(e))
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
-
-
-# @router.get("/{parcel_id}/stats", response_model=RasterStatsListResponse)
-# def get_field_stats(
-#     db: SessionDep,
-#     parcel_id: str,
-#     start_date: date | None = Query(None),
-#     end_date: date | None = Query(None),
-#     metric_type: str = Query("NDVI"),
-# ):
-#     """Get raster statistics for a parcel."""
-#     # Check field exists
-#     parcel = db.get(Parcel, parcel_id)
-#     if not parcel:
-#         raise HTTPException(status_code=404, detail="parcel not found")
-
-#     # Build query
-#     query = db.query(RasterStats).filter(
-#         RasterStats.parcel_id == parcel_id,
-#         RasterStats.metric_type == metric_type,
-#     )
-
-#     if start_date:
-#         query = query.filter(RasterStats.acquisition_date >= start_date)
-#     if end_date:
-#         query = query.filter(RasterStats.acquisition_date <= end_date)
-
-#     stats = query.order_by(RasterStats.acquisition_date.desc()).all()
-
-#     return RasterStatsListResponse(
-#         stats=[RasterStatsResponse.model_validate(s) for s in stats],
-#         total=len(stats),
-#         parcel_id=parcel_id,
-#     )

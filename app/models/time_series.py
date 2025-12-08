@@ -64,7 +64,7 @@ class TimeSeries(Base):
     )
 
     # Relationships
-    parcel: so.Mapped["parcel"] = so.relationship(back_populates="time_series")  # noqa
+    parcel: so.Mapped["Parcel"] = so.relationship(back_populates="time_series")  # noqa
 
     # Unique constraint - one record per parcel/metric/period/date
     __table_args__ = (

@@ -1,9 +1,9 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
-from geoalchemy2 import Geometry
+from geoalchemy2 import Geography, Geometry
 
 from app.core.database import Base
 
@@ -58,8 +58,31 @@ class Parcel(Base):
         sa.Boolean, default=True, comment="Whether to actively monitor this parcel"
     )
 
+    # data got for this parcel
+    last_data_synced_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime,
+        nullable=True,
+        comment="Timestamp of last successful data sync(any job)",
+    )
+    latest_acquisition_date: so.Mapped[date | None] = so.mapped_column(
+        sa.Date, nullable=True, comment="Most recent acquisition_date in raster_stats"
+    )
+    next_sync_scheduled_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime,
+        nullable=True,
+        index=True,
+        comment="When to schedule next ingestion job",
+    )
+
+    auto_sync_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, default=True, nullable=True
+    )  # default true for migrations to work
+
     # Relationships
     raster_stats: so.Mapped[list["RasterStats"]] = so.relationship(  # noqa: F821
+        back_populates="parcel", cascade="all, delete-orphan"
+    )
+    ingestion_jobs: so.Mapped[list["IngestionJob"]] = so.relationship(  # noqa
         back_populates="parcel", cascade="all, delete-orphan"
     )
     time_series: so.Mapped[list["TimeSeries"]] = so.relationship(  # noqa: F821
@@ -68,3 +91,14 @@ class Parcel(Base):
     alerts: so.Mapped[list["Alerts"]] = so.relationship(  # noqa: F821
         back_populates="parcel", cascade="all, delete-orphan"
     )
+
+
+@sa.event.listens_for(Parcel, "before_insert")
+@sa.event.listens_for(Parcel, "before_update")
+def calculate_parcel_area(mapper, connection, target):
+    """Calculate area in hectares from geometry."""
+    if target.geometry is not None:
+        result = connection.execute(
+            sa.select(sa.func.ST_Area(sa.cast(target.geometry, Geography)) / 10000)
+        ).scalar()
+        target.area_hectares = round(float(result), 4) if result else None
