@@ -26,7 +26,7 @@ class IngestionJob(Base):
         nullable=False,
         index=True,
     )
-    # What date range did we REQUEST?
+    # What date range did we Request?
     requested_start_date: so.Mapped[date] = so.mapped_column(
         sa.Date, nullable=False, comment="Start of requested window"
     )
@@ -35,7 +35,7 @@ class IngestionJob(Base):
         sa.Date, nullable=False, comment="End of requested window"
     )
 
-    # What date range did we ACTUALLY get?
+    # What date range did we actually get?
     actual_start_date: so.Mapped[date | None] = so.mapped_column(
         sa.Date, nullable=True, comment="Earliest acquisition date retrieved"
     )
@@ -43,8 +43,6 @@ class IngestionJob(Base):
     actual_end_date: so.Mapped[date | None] = so.mapped_column(
         sa.Date, nullable=True, comment="Latest acquisition date retrieved"
     )
-
-    # JOB STATE
     status: so.Mapped[str] = so.mapped_column(
         sa.String(20),
         nullable=False,
@@ -75,8 +73,6 @@ class IngestionJob(Base):
         sa.Integer, default=0, nullable=False, comment="Number of retry attempts"
     )
 
-    # ============ TIMING ============
-
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime, default=datetime.now(UTC), nullable=False
     )
@@ -89,8 +85,6 @@ class IngestionJob(Base):
         sa.DateTime, nullable=True, comment="When job finished (success or failure)"
     )
 
-    # ============ METADATA ============
-
     job_type: so.Mapped[str] = so.mapped_column(
         sa.String(20), nullable=False, comment="backfill, periodic, manual, retry"
     )
@@ -98,18 +92,12 @@ class IngestionJob(Base):
     data_source_id: so.Mapped[str] = so.mapped_column(
         sa.String(36), sa.ForeignKey("data_sources.uid"), nullable=False, index=True
     )
-
-    # available in raster stats
     metric_type: so.Mapped[str] = so.mapped_column(
         sa.String(20), default="NDVI", nullable=False, comment="Which index to compute"
     )
-
-    # Store full context for debugging
     execution_metadata: so.Mapped[dict | None] = so.mapped_column(
         JSONB, comment="Full execution context, API responses, etc."
     )
-
-    # Relationships
     parcel: so.Mapped["Parcel"] = so.relationship(back_populates="ingestion_jobs")  # noqa
 
     __table_args__ = (
