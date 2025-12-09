@@ -13,6 +13,7 @@ class GlobalConfig(BaseConfig):
     SENTINEL_HUB_BASE_URL: str | None = None
     SENTINEL_HUB_CLIENT_ID: str | None = None
     SENTINEL_HUB_CLIENT_SECRET: str | None = None
+    ENABLE_SCHEDULER: bool = False
 
 
 class DevConfig(GlobalConfig):
