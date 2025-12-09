@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
@@ -25,7 +25,7 @@ class RasterStats(Base):
     )
 
     # When was this data acquired?
-    acquisition_date: so.Mapped[datetime] = so.mapped_column(
+    acquisition_date: so.Mapped[date] = so.mapped_column(
         sa.Date,
         nullable=False,
         index=True,  # Index for time-range queries

@@ -10,10 +10,7 @@ from app.services.sentinel_hub_auth import sentinel_auth
 
 class SentinelHubClient:
     """
-    Low-level client for Sentinel Hub API.
-
-    Handles HTTP requests to Sentinel Hub services.
-    Does NOT contain business logic or database operations.
+    client for Sentinel Hub API. serves an external api interface
     """
 
     def __init__(self, base_url: str = "https://services.sentinel-hub.com"):
@@ -34,8 +31,8 @@ class SentinelHubClient:
         max_cloud_coverage: int = 30,
     ) -> dict[str, Any]:
         """
-        Request statistics from Sentinel Hub Statistical API.
-
+        Request statistics from Sentinel Hub Statistical API. provide area of interest(parcel), time period(start and end date), evalscript
+        and metric type.
         Args:
             geometry: GeoJSON geometry (Polygon)
             start_date: Start of time range
@@ -124,7 +121,6 @@ class SentinelHubClient:
                 "evalscript": evalscript,
             },
             "calculations": {
-                # The output id must match what's defined in evalscript
                 "default": {
                     "statistics": {
                         "default": {}  # Request all default statistics
