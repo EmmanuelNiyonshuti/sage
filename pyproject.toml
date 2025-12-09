@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.17.2",
+    "apscheduler>=3.11.1",
     "asgi-correlation-id>=4.3.4",
     "fastapi[standard]>=0.123.5",
     "geoalchemy2[shapely]>=0.18.1",
