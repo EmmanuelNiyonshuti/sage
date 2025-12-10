@@ -114,6 +114,9 @@ class RasterStatsOut(BaseModel):
     acquisition_date: datetime
 
 
-class ParcelStatsResponse(ParcelStatsRequest):
+class ParcelStatsListResponse(ParcelStatsRequest):
     parcel_id: str
     stats: list[RasterStatsOut]
+    total: int
+    limit: int
+    offset: int

@@ -32,11 +32,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Spatial Agronomic Geo Engine API",
-    summary="""
-    A backend that ingests geospatial data about agricultural land parcels,
-    processes it into useful agricultural insights, stores the results,
-    and exposes them via REST API for internal tools, dashboards, or other services that needs them.
+    title="sage",
+    summary="Spatial Agronomic Geo Engine API",
+    description="""
+    A backend that utilize sentinel hub api to fetch agronomic data through scheduled jobs for a particular farm boundary(drawn on a map) referred to in the application as parcels,
+    stores the data in relational database, builds time series and alerts over those data and expose them via a REST API for internal tools, dashboards, or other services.
     """,
     lifespan=lifespan,
 )
@@ -47,11 +47,11 @@ app.add_middleware(CorrelationIdMiddleware)
 app.include_router(api_router, prefix="/api/v1")
 
 
-@app.get("/health")
+@app.get("/ping")
 def health_check():
     """Health check endpoint."""
     return {
-        "status": "healthy",
+        "status": "up",
         "scheduler_running": ingestion_scheduler.is_running(),
     }
 
