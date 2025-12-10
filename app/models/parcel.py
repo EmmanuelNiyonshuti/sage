@@ -26,23 +26,16 @@ class Parcel(Base):
         ),  # SRID(Spatial Reference System Identifier) 4326 = WGS84 (standard lat/long), defines how to convert coordinates into real-world locations
         nullable=False,
     )
-
-    # Computed from geometry
     area_hectares: so.Mapped[float | None] = so.mapped_column(
-        sa.Numeric(
-            10, 4
-        ),  # will store numbers with up to 10 total digits(precision), with 4 of them being after the decimal point(scale) e.g 999999.9999 hectares
+        sa.Numeric(10, 4),  # e.g 999999.9999 hectares
         nullable=True,
     )
-
-    # Farm characteristics
     soil_type: so.Mapped[str | None] = so.mapped_column(sa.String(100))
     crop_type: so.Mapped[str | None] = so.mapped_column(sa.String(100))
     irrigation_type: so.Mapped[str | None] = so.mapped_column(
         sa.String(50), comment="rainfed, irrigated, mixed"
     )
 
-    # Metadata
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime, default=datetime.now(UTC), nullable=False
     )
@@ -52,13 +45,10 @@ class Parcel(Base):
         onupdate=datetime.now(UTC),
         nullable=False,
     )
-
-    # Status
     is_active: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, default=True, comment="Whether to actively monitor this parcel"
     )
 
-    # data got for this parcel
     last_data_synced_at: so.Mapped[datetime | None] = so.mapped_column(
         sa.DateTime,
         nullable=True,
@@ -76,9 +66,8 @@ class Parcel(Base):
 
     auto_sync_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, default=True, nullable=True
-    )  # default true for migrations to work
+    )
 
-    # Relationships
     raster_stats: so.Mapped[list["RasterStats"]] = so.relationship(  # noqa: F821
         back_populates="parcel", cascade="all, delete-orphan"
     )
@@ -94,7 +83,7 @@ class Parcel(Base):
 
 
 @sa.event.listens_for(Parcel, "before_insert")
-@sa.event.listens_for(Parcel, "before_update")
+# @sa.event.listens_for(Parcel, "before_update")
 def calculate_parcel_area(mapper, connection, target):
     """Calculate area in hectares from geometry."""
     if target.geometry is not None:

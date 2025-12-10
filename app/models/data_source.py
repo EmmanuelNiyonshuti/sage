@@ -41,8 +41,6 @@ class DataSource(Base):
         default=7,
         comment="How often to run ingestion (7 days default)",
     )
-
-    # endpoint url for datasource
     api_endpoint: so.Mapped[str] = so.mapped_column(sa.String(255))
     max_cloud_coverage: so.Mapped[int] = so.mapped_column(sa.Integer, default=30)
 

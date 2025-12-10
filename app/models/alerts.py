@@ -12,13 +12,9 @@ class Alerts(Base):
     """Detected anomalies and issues requiring attention"""
 
     __tablename__ = "alerts"
-
-    # Primary key
     uid: so.Mapped[str] = so.mapped_column(
         sa.String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
-
-    # Foreign key
     parcel_id: so.Mapped[str] = so.mapped_column(
         sa.String(36),
         sa.ForeignKey("parcels.uid", ondelete="CASCADE"),
@@ -26,7 +22,6 @@ class Alerts(Base):
         index=True,
     )
 
-    # Alert classification
     alert_type: so.Mapped[str] = so.mapped_column(
         sa.String(100),
         nullable=False,
@@ -36,11 +31,8 @@ class Alerts(Base):
     severity: so.Mapped[str] = so.mapped_column(
         sa.String(20), nullable=False, comment="low, medium, high, critical"
     )
-
-    # Human-readable message
     message: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
 
-    # Lifecycle
     detected_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime, default=datetime.now(UTC), nullable=False, index=True
     )
@@ -54,12 +46,10 @@ class Alerts(Base):
 
     resolved_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime)
 
-    # Additional context (flexible storage)
     alerts_data: so.Mapped[dict | None] = so.mapped_column(
         JSONB, comment="Store alert-specific data like thresholds, values, etc."
     )
 
-    # Relationships
     parcel: so.Mapped["Parcel"] = so.relationship(back_populates="alerts")  # noqa 821
 
     __table_args__ = (
