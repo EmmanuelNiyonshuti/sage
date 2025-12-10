@@ -13,14 +13,14 @@ class GlobalConfig(BaseConfig):
     SENTINEL_HUB_BASE_URL: str | None = None
     SENTINEL_HUB_CLIENT_ID: str | None = None
     SENTINEL_HUB_CLIENT_SECRET: str | None = None
-    ENABLE_SCHEDULER: bool | None = None
-    SHEDULER_INTERVAL_HOURS: int | None = None
+    ENABLE_SCHEDULER: bool = False
+    SHEDULER_INTERVAL_HOURS: int = 1
 
 
 class DevConfig(GlobalConfig):
     model_config = SettingsConfigDict(env_prefix="DEV_")
     ENABLE_SCHEDULER: bool = True
-    SHEDULER_INTERVAL_HOURS: int = 5  # placeholder
+    SHEDULER_INTERVAL_HOURS: int = 24
 
 
 class TestConfig(GlobalConfig):
@@ -29,7 +29,8 @@ class TestConfig(GlobalConfig):
 
 
 class prodConfig(GlobalConfig):
-    model_config = SettingsConfigDict(env_prefix="DEV_")
+    model_config = SettingsConfigDict(env_prefix="PROD_")
+    ENABLE_SCHEDULER: bool = True
 
 
 @lru_cache()
