@@ -4,11 +4,11 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.core.database import db_session
+from app.core.database import session_factory
 
 
 def get_db() -> Generator[Session, None, None]:
-    with db_session() as session:
+    with session_factory() as session:
         yield session
 
 

@@ -15,10 +15,10 @@ from typing import Any
 
 from geoalchemy2.shape import to_shape
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.clients.sentinel_hub import sentinel_client
 from app.constants.evalscripts import NDVI_EVALSCRIPT
-from app.core.database import get_db_context
 from app.models import IngestionJob, Parcel, RasterStats
 
 logger = logging.getLogger(__name__)
@@ -32,11 +32,11 @@ class IngestionService:
     def __init__(self, session_factory):
         self.session_factory = session_factory
 
-    def ingest_with_job_tracking(self, job: IngestionJob):
+    def ingest_with_job_tracking(self, db_s: Session, job: IngestionJob):
         logger.info(f"starting ingestion for parcel with id {job.parcel_id}")
         job.status = "running"
         job.started_at = datetime.now(UTC)
-
+        db_s.commit()
         try:
             parcel_boundary_geojson_obj = self.get_parcel_geometry(job.parcel_id)
             response = sentinel_client.get_statistics(
@@ -48,12 +48,12 @@ class IngestionService:
             created, skipped, acquisition_dates = 0, 0, []
             for interval_data in response.get("data", []):
                 try:
-                    acq_date = self.extract_acquisition_date(
+                    acq_date = self.parse_acquisition_date(
                         interval_data["interval"]["from"]
                     )
                     stats = self.extract_stats(interval_data)
                     already_exists = self.record_exists(
-                        job.parcel_id, acq_date, job.metric_type
+                        db_s, job.parcel_id, acq_date, job.metric_type
                     )
                     if already_exists:
                         logger.debug(
@@ -63,6 +63,7 @@ class IngestionService:
                         skipped += 1
                         continue
                     self._create_raster_stat(
+                        db_s,
                         job.parcel_id,
                         acq_date,
                         job.metric_type,
@@ -78,23 +79,26 @@ class IngestionService:
                         f"Failed to process interval for date "
                         f"{interval_data.get('interval', {}).get('from')}: {e}"
                     )
-
-            latest_acq_dt = max(acquisition_dates)
             if created > 0:
                 job.status = "completed"
                 job.actual_start_date = min(acquisition_dates)
-                job.actual_end_date = latest_acq_dt
+                job.actual_end_date = max(acquisition_dates)
+                db_s.commit()
             elif skipped > 0:
                 job.status = "completed"  # All already existed
+                db_s.commit()
             else:
                 job.status = "partial"  # Requested data not available
-
+                db_s.commit()
             job.records_created = created
             job.records_skipped = skipped
             job.completed_at = datetime.now(UTC)
+            db_s.commit()
 
             if created > 0:
-                self._update_parcel_metadata(job.parcel_id, latest_acq_dt)
+                self._update_parcel_metadata(
+                    db_s, job.parcel_id, max(acquisition_dates)
+                )
 
             logger.info(
                 f"Job {job.uid} completed: {created} created, {skipped} skipped"
@@ -107,6 +111,7 @@ class IngestionService:
             job.error_message = str(e)
             job.completed_at = datetime.now(UTC)
             job.retry_count += 1
+            db_s.commit()
 
             logger.exception(f"Job {job.uid} failed: {e}")
             raise
@@ -121,7 +126,7 @@ class IngestionService:
         # convert PostGis to shapely
         polygon_shape = to_shape(parcel.geometry)
         # convert to geojson
-        return {"type": "Polygon", "coordinates": [list(polygon_shape.exterio.coords)]}
+        return {"type": "Polygon", "coordinates": [list(polygon_shape.exterior.coords)]}
 
     def parse_acquisition_date(self, acq_date: str) -> date:
         return datetime.fromisoformat(acq_date).date()
@@ -140,19 +145,18 @@ class IngestionService:
         return stats
 
     def record_exists(
-        self, parcel_id: str, acquisition_date: date, metric_type: str
+        self, db_s: Session, parcel_id: str, acquisition_date: date, metric_type: str
     ) -> bool:
         exist_stmt = select(RasterStats).where(
             RasterStats.acquisition_date == acquisition_date,
             RasterStats.parcel_id == parcel_id,
             RasterStats.metric_type == metric_type,
         )
-        with self.session_factory() as db_s:
-            exist_result = db_s.execute(exist_stmt)
-            return exist_result.first() is not None
+        return db_s.scalar(exist_stmt) is not None
 
     def _create_raster_stat(
         self,
+        db_s: Session,
         parcel_id: str,
         acquisition_date: date,
         metric_type: str,
@@ -174,25 +178,25 @@ class IngestionService:
         Returns:
             Created RasterStats instance (not yet committed)
         """
-        with self.session_factory() as db_s:
-            raster_stat = RasterStats(
-                parcel_id=parcel_id,
-                acquisition_date=acquisition_date,
-                data_source_id=satellite_source_id,
-                metric_type=metric_type,
-                mean_value=stats["mean"],
-                min_value=stats["min"],
-                max_value=stats["max"],
-                std_dev=stats.get("stDev"),
-                pixel_count=stats.get("sampleCount"),
-                cloud_cover_percent=None,  # Not directly available in stats response
-                raw_metadata=raw_metadata,
-            )
+        raster_stat = RasterStats(
+            parcel_id=parcel_id,
+            acquisition_date=acquisition_date,
+            data_source_id=satellite_source_id,
+            metric_type=metric_type,
+            mean_value=stats["mean"],
+            min_value=stats["min"],
+            max_value=stats["max"],
+            std_dev=stats.get("stDev"),
+            pixel_count=stats.get("sampleCount"),
+            cloud_cover_percent=None,  # Not directly available in stats response
+            raw_metadata=raw_metadata,
+        )
 
-            db_s.add(raster_stat)
-            return raster_stat
+        db_s.add(raster_stat)
+        db_s.commit()
+        return raster_stat
 
-    def _update_parcel_metadata(self, parcel_id: str, latest_date: date):
+    def _update_parcel_metadata(self, db_s: Session, parcel_id: str, latest_date: date):
         """
         Update parcel's ingestion metadata after successful ingestion.
 
@@ -204,25 +208,19 @@ class IngestionService:
             parcel_id: Parcel UUID
             latest_date: Most recent acquisition date from this job
         """
-        with self.session_factory() as db_s:
-            parcel = db_s.get(Parcel, parcel_id)
+        parcel = db_s.get(Parcel, parcel_id)
 
         if not parcel:
             logger.warning(f"Parcel {parcel_id} not found during metadata update")
             return
         parcel.last_data_synced_at = datetime.now(UTC)
-
         # Update latest acquisition date if newer
         if (
             parcel.latest_acquisition_date is None
             or latest_date > parcel.latest_acquisition_date
         ):
             parcel.latest_acquisition_date = latest_date
-
         logger.debug(
             f"Updated parcel {parcel_id} metadata: "
             f"latest_acquisition_date={latest_date}"
         )
-
-
-ingestion_service = IngestionService(get_db_context)

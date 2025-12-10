@@ -9,7 +9,7 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.core.database import get_db_context
+from app.core.database import session_factory
 from app.services.ingestion_engine import IngestionEngine
 
 logger = logging.getLogger(__name__)
@@ -82,9 +82,8 @@ class IngestionScheduler:
         logger.info("Scheduler triggered: checking for due parcels")
 
         try:
-            with get_db_context() as db:
-                engine = IngestionEngine(db)
-                results = engine.process_due_parcels()
+            engine = IngestionEngine(session_factory)
+            results = engine.process_due_parcels()
 
             logger.info(
                 f"Scheduled job completed: "

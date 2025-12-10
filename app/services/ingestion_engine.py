@@ -11,9 +11,9 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 from typing import List
 
-from sqlalchemy import and_, select
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-from app.core.database import get_db_context
 from app.models import DataSource, IngestionJob, Parcel
 
 from .ingestion_service import IngestionService
@@ -61,25 +61,26 @@ class IngestionEngine:
             parcel = db_s.get(Parcel, parcel_id)
             if parcel is None:
                 raise ValueError(f"parcel with {parcel_id} not found")
-        data_source = self._get_active_data_source()
-        safe_end_dt = self._calculate_safe_end_date(data_source)
-        start_dt = safe_end_dt - timedelta(days=lookback_days)
+            data_source = self._get_active_data_source(db_s)
+            safe_end_dt = self._calculate_safe_end_date(data_source)
+            start_dt = safe_end_dt - timedelta(days=lookback_days)
 
-        job = IngestionJob(
-            parcel_id=parcel_id,
-            requested_start_date=start_dt,
-            requested_end_date=safe_end_dt,
-            job_type="backfill",
-            data_source_id=data_source.uid,
-        )
-        with self.session_factory() as db_s:
+            job = IngestionJob(
+                parcel_id=parcel_id,
+                requested_start_date=start_dt,
+                requested_end_date=safe_end_dt,
+                job_type="backfill",
+                data_source_id=data_source.uid,
+            )
             db_s.add(job)
-            db_s.refresh(job)
+            db_s.commit()
             logger.info(f"Created backfill job {job.uid}")
 
             # Execute job
             try:
-                completed_job = self.ingestion_service.ingest_with_job_tracking(job)
+                completed_job = self.ingestion_service.ingest_with_job_tracking(
+                    db_s, job
+                )
                 logger.info(
                     f"Backfill completed for {parcel.name}: "
                     f"{completed_job.records_created} records created"
@@ -100,35 +101,41 @@ class IngestionEngine:
         """
         logger.info("Starting scheduled ingestion check")
 
-        due_parcels = self._get_due_parcels()
+        with self.session_factory() as db_s:
+            due_parcels = self._get_due_parcels(db_s)
 
-        logger.info(f"Found {len(due_parcels)} parcels due for ingestion")
+            due_parcels_len = len(due_parcels)
+            logger.info(f"Found {due_parcels_len} parcels due for ingestion")
 
-        results = {"total": len(due_parcels), "succeeded": 0, "failed": 0, "skipped": 0}
+            results = {
+                "total": due_parcels_len,
+                "succeeded": 0,
+                "failed": 0,
+                "skipped": 0,
+            }
 
-        for parcel in due_parcels:
-            try:
-                self._process_single_parcel(parcel)
-                results["succeeded"] += 1
+            for parcel in due_parcels:
+                try:
+                    self._process_single_parcel(db_s, parcel)
+                    results["succeeded"] += 1
 
-            except UpToDateError:
-                # Parcel is already current
-                results["skipped"] += 1
+                except UpToDateError:
+                    results["skipped"] += 1
 
-            except Exception:
-                logger.exception(f"Failed to process parcel {parcel.uid}")
-                results["failed"] += 1
+                except Exception:
+                    logger.exception(f"Failed to process parcel {parcel.uid}")
+                    results["failed"] += 1
 
-        logger.info(
-            f"Scheduled ingestion complete: "
-            f"{results['succeeded']} succeeded, "
-            f"{results['failed']} failed, "
-            f"{results['skipped']} skipped"
-        )
+            logger.info(
+                f"Scheduled ingestion complete: "
+                f"{results['succeeded']} succeeded, "
+                f"{results['failed']} failed, "
+                f"{results['skipped']} skipped"
+            )
 
-        return results
+            return results
 
-    def _get_due_parcels(self) -> List[Parcel]:
+    def _get_due_parcels(self, db_s: Session) -> List[Parcel]:
         """
         Get list of parcels that need ingestion.
 
@@ -139,20 +146,22 @@ class IngestionEngine:
         Returns:
             List of Parcel instances
         """
-        now = datetime.now(UTC)
-        with self.session_factory() as db_s:
-            stmt = select(Parcel).where(
-                and_(
-                    Parcel.is_active,
-                    Parcel.auto_sync_enabled,
-                    (Parcel.next_sync_scheduled_at <= now)
-                    | (Parcel.next_sync_scheduled_at == None),
-                )
-            )
+        # now = datetime.now(UTC)
+        stmt = select(Parcel).where(
+            Parcel.is_active,
+        )
+        # stmt = select(Parcel).where(
+        #     and_(
+        #         Parcel.is_active,
+        #         Parcel.auto_sync_enabled,
+        #         (Parcel.next_sync_scheduled_at == None)
+        #         | (Parcel.next_sync_scheduled_at <= now),
+        #     )
+        # )
 
-            return list(db_s.execute(stmt).scalars().all())
+        return list(db_s.execute(stmt).scalars().all())
 
-    def _process_single_parcel(self, parcel: Parcel):
+    def _process_single_parcel(self, db_s: Session, parcel: Parcel):
         """
         Process ingestion for a single parcel.
 
@@ -164,17 +173,17 @@ class IngestionEngine:
         Raises:
             UpToDateError: If parcel is already current
         """
-        logger.info(f"Processing parcel {parcel.uid} ({parcel.name})")
 
-        data_source = self._get_active_data_source()
         try:
+            data_source = self._get_active_data_source(db_s)
             start_dt, end_dt = self._determine_fetch_window(parcel, data_source)
-
+            logger.info(
+                f"Processing parcel {parcel.uid} ({parcel.name}) from data_source {data_source.name}"
+            )
         except UpToDateError as e:
             logger.info(str(e))
             # Schedule next check
             self._schedule_next_sync(parcel, data_source)
-
             raise
         job = IngestionJob(
             parcel_id=parcel.uid,
@@ -183,23 +192,22 @@ class IngestionEngine:
             job_type="periodic",
             data_source_id=data_source.uid,
         )
-        with self.session_factory() as db_s:
-            db_s.add(job)
-            db_s.refresh(job)
-            try:
-                completed_job = self.ingestion_service.ingest_with_job_tracking(job)
-                self._schedule_next_sync(parcel, data_source)
+        db_s.add(job)
+        db_s.commit()
+        try:
+            completed_job = self.ingestion_service.ingest_with_job_tracking(db_s, job)
+            self._schedule_next_sync(db_s, parcel, data_source)
 
-                logger.info(
-                    f"Processed {parcel.name}: {completed_job.records_created} records"
-                )
+            logger.info(
+                f"Processed {parcel.name}: {completed_job.records_created} records"
+            )
 
-            except Exception:
-                logger.exception(f"Failed to process parcel {parcel.uid}")
-                raise
+        except Exception:
+            logger.exception(f"Failed to process parcel {parcel.uid}")
+            raise
 
     def _get_active_data_source(
-        self, data_source_name: str = "sentinel-2-l2a"
+        self, db_s, data_source_name: str = "sentinel-2-l2a"
     ) -> DataSource:
         """
         Get the active data source (currently sentinel-2-l2a).
@@ -211,15 +219,12 @@ class IngestionEngine:
             ValueError: If no active data source found
         """
         stmt = select(DataSource).where(
-            DataSource.name == data_source_name, DataSource.is_active
+            DataSource.name == data_source_name, DataSource.is_active.is_(True)
         )
-        with self.session_factory() as db_s:
-            result = db_s.execute(stmt)
-            data_source = result.first()
-            if not data_source:
-                raise ValueError("No active data source found. Run seeds first.")
-
-            return data_source
+        data_source = db_s.scalar(stmt)
+        if not data_source:
+            raise ValueError("No active data source found. Run seeds first.")
+        return data_source
 
     def _calculate_safe_end_date(self, data_source: DataSource) -> date:
         """
@@ -283,7 +288,9 @@ class IngestionEngine:
 
         return start_dt, safe_end_dt
 
-    def _schedule_next_sync(self, parcel: Parcel, data_source: DataSource):
+    def _schedule_next_sync(
+        self, db_s: Session, parcel: Parcel, data_source: DataSource
+    ):
         """
         Schedule the next sync time for a parcel.
 
@@ -292,10 +299,5 @@ class IngestionEngine:
             data_source: DataSource configuration
         """
         next_sync = datetime.now(UTC) + timedelta(days=data_source.sync_frequency_days)
-
         parcel.next_sync_scheduled_at = next_sync
-
         logger.debug(f"Scheduled next sync for {parcel.uid} at {next_sync}")
-
-
-ingestion_engine = IngestionEngine(get_db_context)

@@ -8,7 +8,7 @@ from .config import config
 
 engine = create_engine(config.DATABASE_URL)
 
-db_session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 class Base(DeclarativeBase):
@@ -18,9 +18,9 @@ class Base(DeclarativeBase):
 @contextmanager
 def get_db_context() -> Generator[Session, None, None]:
     """
-    provide database sessions, used by scheduler.
+    provide database sessions, to be used when a caller wants a single session for a block of code.
     """
-    session = db_session()
+    session = session_factory()
     try:
         yield session
         session.commit()
