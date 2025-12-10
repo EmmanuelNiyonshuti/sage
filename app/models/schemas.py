@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
 from geoalchemy2.shape import to_shape
@@ -99,7 +99,21 @@ class ParcelListResponse(BaseModel):
     total: int
 
 
-class IngestRequest(BaseModel):
-    field_id: str
-    start_date: date
-    end_date: date
+class ParcelStatsRequest(BaseModel):
+    parcel_id: str
+
+
+class RasterStatsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    metric_type: str
+    mean_value: float
+    max_value: float
+    min_value: float
+    std_dev: float
+    processed_at: datetime
+    acquisition_date: datetime
+
+
+class ParcelStatsResponse(ParcelStatsRequest):
+    parcel_id: str
+    stats: list[RasterStatsOut]

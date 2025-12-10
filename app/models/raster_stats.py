@@ -33,7 +33,7 @@ class RasterStats(Base):
         sa.Numeric(10, 6),
         nullable=False,
     )
-    min_value: so.Mapped[float] = so.mapped_column(sa.Numeric(10, 6))
+    min_value: so.Mapped[float] = so.mapped_column(sa.Numeric(10, 6))  # ndvi pixel
     max_value: so.Mapped[float] = so.mapped_column(sa.Numeric(10, 6))
     std_dev: so.Mapped[float | None] = so.mapped_column(sa.Numeric(10, 6))
 
