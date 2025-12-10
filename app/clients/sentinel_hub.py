@@ -5,12 +5,12 @@ from typing import Any
 
 import httpx
 
-from app.services.sentinel_hub_auth import sentinel_auth
+from .sentinel_hub_auth import sentinel_auth
 
 
 class SentinelHubClient:
     """
-    client for Sentinel Hub API. serves an external api interface
+    client for Sentinel Hub API. serve as external api interface
     """
 
     def __init__(self, base_url: str = "https://services.sentinel-hub.com"):
@@ -31,8 +31,8 @@ class SentinelHubClient:
         max_cloud_coverage: int = 30,
     ) -> dict[str, Any]:
         """
-        Request statistics from Sentinel Hub Statistical API. provide area of interest(parcel), time period(start and end date), evalscript
-        and metric type.
+        Request statistics from Sentinel Hub Statistical API.
+        provide area of interest(parcel), time period(start and end date), evalscript
         Args:
             geometry: GeoJSON geometry (Polygon)
             start_date: Start of time range
@@ -46,7 +46,6 @@ class SentinelHubClient:
         Raises:
             httpx.HTTPStatusError: If API request fails
         """
-        # Build request payload
         payload = self._build_statistics_payload(
             geometry=geometry,
             start_date=start_date,
