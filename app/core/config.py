@@ -10,6 +10,7 @@ class BaseConfig(BaseSettings):
 
 class GlobalConfig(BaseConfig):
     DATABASE_URL: str | None = None
+    DB_FORCE_ROLL_BACK: bool = False
     SENTINEL_HUB_BASE_URL: str | None = None
     SENTINEL_HUB_CLIENT_ID: str | None = None
     SENTINEL_HUB_CLIENT_SECRET: str | None = None
@@ -24,19 +25,21 @@ class DevConfig(GlobalConfig):
 
 
 class TestConfig(GlobalConfig):
-    DATABASE_URL: str = "sqlite:///:memory"
+    DATABASE_URL: str | None = None
+    DB_FORCE_ROLL_BACK: bool = True
     model_config = SettingsConfigDict(env_prefix="TEST_")
 
 
-class prodConfig(GlobalConfig):
-    model_config = SettingsConfigDict(env_prefix="PROD_")
+class ProdConfig(GlobalConfig):
+    DATABASE_URL: str | None = None
     ENABLE_SCHEDULER: bool = True
+    model_config = SettingsConfigDict(env_prefix="PROD_")
 
 
 @lru_cache()
 def get_config(env_state: str):
-    config_dict = {"dev": DevConfig, "test": TestConfig, "prod": TestConfig}
+    config_dict = {"dev": DevConfig, "test": TestConfig, "prod": ProdConfig}
     return config_dict[env_state]()
 
 
-config = get_config(GlobalConfig().ENV_STATE)
+config = get_config(BaseConfig().ENV_STATE)
