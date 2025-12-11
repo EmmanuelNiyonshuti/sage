@@ -1,17 +1,19 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
-from geoalchemy2.shape import from_shape, to_shape
-from shapely.geometry import shape
 
 from app.api.deps import SessionDep
-from app.core.database import session_factory
 from app.models import Parcel
 from app.models.schemas import (
     ParcelCreate,
     ParcelResponse,
 )
-from app.services.ingestion_engine import IngestionEngine
+from app.utils import (
+    geojson_to_shapely,
+    shapely_to_wkbelement,
+    trigger_backfill_for_parcel,
+    wkb_to_geojson,
+)
 
 router = APIRouter(prefix="/parcels", tags=["Parcels"])
 logger = logging.getLogger(__name__)
@@ -39,14 +41,15 @@ def create_parcel(
     (default: last 90 days).
     """
     try:
-        geom_dict = parcel_data.geometry.model_dump()
-        shapely_geom = shape(geom_dict)
+        geojson = parcel_data.geometry.model_dump()
+        shapely_obj = geojson_to_shapely(geojson)
     except Exception as e:
         logger.error(f"Invalid geometry provided: {e}")
         raise HTTPException(status_code=400, detail=f"Invalid geometry: {str(e)}")
+    wkb_element = shapely_to_wkbelement(shapely_obj)
     parcel = Parcel(
         name=parcel_data.name,
-        geometry=from_shape(shapely_geom, srid=4326),
+        geometry=wkb_element,
         crop_type=parcel_data.crop_type,
         soil_type=parcel_data.soil_type,
         irrigation_type=parcel_data.irrigation_type,
@@ -69,18 +72,14 @@ def create_parcel(
     except Exception as e:
         db.rollback()
         logger.exception(f"Failed to create parcel: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create parcel")
-
-    # Convert geometry for response
-    shape_obj = to_shape(parcel.geometry)
-
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create parcel, {str(e)}"
+        )
+    geojson_obj = wkb_to_geojson(parcel.geometry)
     return ParcelResponse(
         uid=parcel.uid,
         name=parcel.name,
-        geometry={
-            "type": "Polygon",
-            "coordinates": [list(shape_obj.exterior.coords)],
-        },
+        geometry=geojson_obj,
         area_hectares=parcel.area_hectares,
         crop_type=parcel.crop_type,
         soil_type=parcel.soil_type,
@@ -93,16 +92,3 @@ def create_parcel(
         created_at=parcel.created_at,
         updated_at=parcel.updated_at,
     )
-
-
-def trigger_backfill_for_parcel(parcel_id: str, lookback_days: int = 90):
-    logger.info(f"Starting background backfill for parcel {parcel_id}")
-    try:
-        engine = IngestionEngine(session_factory)
-        job = engine.trigger_initial_backfill(parcel_id, lookback_days=lookback_days)
-        logger.info(
-            f"Backfill completed for parcel {parcel_id}: "
-            f"{job.records_created} records created"
-        )
-    except Exception as e:
-        logger.exception(f" Backfill failed for parcel {parcel_id}: {e}")
