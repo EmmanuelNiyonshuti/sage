@@ -46,7 +46,7 @@ class GeometrySchema(BaseModel):
 class ParcelCreate(BaseModel):
     """Schema for creating a new field."""
 
-    name: str = Field(..., min_length=1, max_length=255)
+    name: str = Field(min_length=1, max_length=255)
     geometry: GeometrySchema
 
     crop_type: str | None = Field(None, max_length=100)
