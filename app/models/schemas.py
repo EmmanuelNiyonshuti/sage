@@ -1,14 +1,15 @@
 from datetime import datetime
 from typing import Any
 
-from geoalchemy2.shape import to_shape
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+
+from app.utils import geojson_to_shapely, shapely_to_wkbelement, wkb_to_geojson
 
 
 class GeometrySchema(BaseModel):
     """GeoJSON Polygon geometry."""
 
-    type: str = Field(..., pattern="^Polygon$")  # geometry type, polygon
+    type: str = Field(..., pattern="^Polygon$")
     coordinates: list[list[list[float]]]
 
     @field_validator("coordinates")
@@ -21,12 +22,8 @@ class GeometrySchema(BaseModel):
         exterior_ring = v[0]
         if len(exterior_ring) < 4:
             raise ValueError("Polygon must have at least 4 points")
-
-        # Check closed
         if exterior_ring[0] != exterior_ring[-1]:
             raise ValueError("Polygon must be closed (first == last point)")
-
-        # Check coordinate format [lng, lat]
         for point in exterior_ring:
             if len(point) != 2:
                 raise ValueError("Each coordinate must be [longitude, latitude]")
@@ -47,11 +44,18 @@ class ParcelCreate(BaseModel):
     """Schema for creating a new field."""
 
     name: str = Field(min_length=1, max_length=255)
-    geometry: GeometrySchema
+    geometry: Any
 
     crop_type: str | None = Field(None, max_length=100)
     soil_type: str | None = Field(None, max_length=100)
     irrigation_type: str | None = Field(None, pattern="^(rainfed|irrigated|mixed)$")
+
+    @field_validator("geometry", mode="before")
+    @classmethod
+    def convert_geojson_to_wkb(cls, v):
+        validated_geojson = GeometrySchema.model_validate(v)
+        shapely_obj = geojson_to_shapely(validated_geojson)
+        return shapely_to_wkbelement(shapely_obj)
 
 
 class ParcelUpdate(BaseModel):
@@ -79,7 +83,7 @@ class ParcelResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @field_validator("geometry", mode="before")
+    @field_serializer("geometry")
     @classmethod
     def convert_geometry_to_geojson(cls, v):
         """Convert WKB geometry to geojson"""
@@ -87,9 +91,7 @@ class ParcelResponse(BaseModel):
             return None
         if isinstance(v, dict):
             return v
-
-        shape_obj = to_shape(v)
-        return {"type": "Polygon", "coordinates": [list(shape_obj.exterior.coords)]}
+        return wkb_to_geojson(v)
 
 
 class ParcelListResponse(BaseModel):
