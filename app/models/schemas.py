@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.utils import geojson_to_shapely, shapely_to_wkbelement, wkb_to_geojson
 
@@ -9,7 +9,10 @@ from app.utils import geojson_to_shapely, shapely_to_wkbelement, wkb_to_geojson
 class GeometrySchema(BaseModel):
     """GeoJSON Polygon geometry."""
 
-    type: str = Field(..., pattern="^Polygon$")
+    model_config = ConfigDict(populate_by_name=True)
+    geometry_type: Annotated[
+        str, Field(pattern="^Polygon$", alias="type", serialization_alias="type")
+    ]
     coordinates: list[list[list[float]]]
 
     @field_validator("coordinates")
@@ -43,34 +46,30 @@ class GeometrySchema(BaseModel):
 class ParcelCreate(BaseModel):
     """Schema for creating a new field."""
 
-    name: str = Field(min_length=1, max_length=255)
+    name: Annotated[str, Field(min_length=5, max_length=255)]
     geometry: Any
 
-    crop_type: str | None = Field(None, max_length=100)
-    soil_type: str | None = Field(None, max_length=100)
-    irrigation_type: str | None = Field(None, pattern="^(rainfed|irrigated|mixed)$")
+    crop_type: Annotated[str | None, Field(min_length=3, max_length=100)]
+    soil_type: Annotated[str | None, Field(min_length=3, max_length=100)]
+    irrigation_type: Literal["rainfed", "irrigated", "mixed"] | None = None
 
     @field_validator("geometry", mode="before")
     @classmethod
     def convert_geojson_to_wkb(cls, v):
         validated_geojson = GeometrySchema.model_validate(v)
-        shapely_obj = geojson_to_shapely(validated_geojson)
+        shapely_obj = geojson_to_shapely(validated_geojson.model_dump(by_alias=True))
         return shapely_to_wkbelement(shapely_obj)
 
 
 class ParcelUpdate(BaseModel):
-    """Schema for updating a field."""
-
-    name: str | None = Field(None, min_length=1, max_length=255)
-    crop_type: str | None = None
-    soil_type: str | None = None
-    irrigation_type: str | None = None
+    name: Annotated[str, Field(min_length=5, max_length=255)]
+    crop_type: Annotated[str | None, Field(min_length=3, max_length=100)]
+    soil_type: Annotated[str | None, Field(min_length=3, max_length=100)]
+    irrigation_type: Literal["rainfed", "irrigated", "mixed"] | None = None
     is_active: bool | None = None
 
 
 class ParcelResponse(BaseModel):
-    """Schema for field responses."""
-
     model_config = ConfigDict(from_attributes=True)
     uid: str
     name: str
@@ -83,9 +82,9 @@ class ParcelResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @field_serializer("geometry")
+    @field_validator("geometry", mode="before")
     @classmethod
-    def convert_geometry_to_geojson(cls, v):
+    def convert_geometry_to_geojson(cls, v) -> dict[str, Any] | None:
         """Convert WKB geometry to geojson"""
         if v is None:
             return None
@@ -119,6 +118,6 @@ class RasterStatsOut(BaseModel):
 class ParcelStatsListResponse(ParcelStatsRequest):
     parcel_id: str
     stats: list[RasterStatsOut]
-    total: int
+    total: int | None = None
     limit: int
     offset: int
