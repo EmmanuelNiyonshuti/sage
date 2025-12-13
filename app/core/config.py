@@ -20,7 +20,7 @@ class GlobalConfig(BaseConfig):
 
 class DevConfig(GlobalConfig):
     model_config = SettingsConfigDict(env_prefix="DEV_")
-    ENABLE_SCHEDULER: bool = True
+    # ENABLE_SCHEDULER: bool = True
     SHEDULER_INTERVAL_HOURS: int = 24
 
 

@@ -29,7 +29,7 @@ def geojson_to_shapely(geojson: dict) -> Polygon:
 
 
 def shapely_to_wkbelement(shapely_obj: Polygon, srid: int = 4326) -> WKBElement:
-    return from_shape(shape, srid=srid)
+    return from_shape(shapely_obj, srid=srid)
 
 
 def wkb_to_geojson(wkb_geom: WKBElement) -> dict:

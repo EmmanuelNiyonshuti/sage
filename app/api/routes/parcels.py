@@ -1,8 +1,10 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from pydantic import ValidationError
 
 from app.api.deps import SessionDep
+from app.crud import find_parcel_by_id
 from app.models import Parcel
 from app.models.schemas import (
     ParcelCreate,
@@ -39,8 +41,8 @@ def create_parcel(
     """
     try:
         parcel = Parcel(**parcel_data.model_dump())
-    except Exception as e:
-        logger.error(f"Failed validating request data: {str(e)}")
+    except ValidationError as e:
+        logger.exception(e)
         raise HTTPException(
             status_code=400,
             detail="Failed validating request data for adding parcel, please try again",
@@ -57,11 +59,28 @@ def create_parcel(
                 lookback_days=90,
             )
             logger.info(f"Queued backfill job for parcel {parcel.name}")
-        return ParcelResponse.model_dump_json(indent=2)
+        return ParcelResponse.model_validate(parcel)
     except Exception as e:
         db.rollback()
         logger.exception(f"Failed to create parcel, {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail="an error occured adding a parcel, please try again.",
+            detail=f"an error occured adding a parcel, please try again. {e}",
+        )
+
+
+@router.get("/{parcel_id}")
+def get_parcel(parcel_id: str, db: SessionDep):
+    parcel = find_parcel_by_id(parcel_id, db)
+    if not parcel:
+        raise HTTPException(
+            status_code=404, detail=f"parcel with id {parcel_id} is not found"
+        )
+    try:
+        return ParcelResponse.model_validate(parcel)
+    except ValidationError as e:
+        logger.exception(e)
+        raise HTTPException(
+            status_code=500,
+            detail="an unexpected error occured retrieving parcel, please try again.",
         )
