@@ -1,8 +1,3 @@
-"""fixtures for sharing data with multiple tests file
-
-sharing fixtures to share data with multiple tests.
-"""
-
 import os
 from typing import Generator
 
