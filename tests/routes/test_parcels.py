@@ -4,8 +4,38 @@ from httpx import AsyncClient
 api_url_prefix = "/api/v1"
 
 
+async def create_parcel(payload: dict, async_client: AsyncClient) -> dict:
+    response = await async_client.post(f"{api_url_prefix}/parcels/", json=payload)
+    return response.json()
+
+
+@pytest.fixture()
+async def created_parcel(async_client: AsyncClient):
+    return await create_parcel(
+        {
+            "name": "Kigali Trial Parcel",
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [30.058, -1.949],
+                        [30.060, -1.949],
+                        [30.060, -1.947],
+                        [30.058, -1.947],
+                        [30.058, -1.949],
+                    ]
+                ],
+            },
+            "crop_type": "maize",
+            "soil_type": "clay",
+            "irrigation_type": "rainfed",
+        },
+        async_client,
+    )
+
+
 @pytest.mark.anyio
-async def test_add_parcel(async_client: AsyncClient):
+async def test_create_parcel(async_client: AsyncClient):
     payload = {
         "name": "Nyamata Block A",
         "geometry": {
@@ -25,9 +55,34 @@ async def test_add_parcel(async_client: AsyncClient):
         "irrigation_type": "mixed",
     }
     response = await async_client.post(f"{api_url_prefix}/parcels/", json=payload)
-    print(response.json())
     assert response.status_code == 201
     assert {
         "name": "Nyamata Block A",
         "crop_type": "bean",
     }.items() <= response.json().items()
+
+
+@pytest.mark.anyio
+async def test_parcel_stats(async_client: AsyncClient, created_parcel: created_parcel):
+    response = await async_client.get(
+        f"{api_url_prefix}/parcels/{created_parcel['uid']}/stats"
+    )
+    assert response.status_code == 200
+    assert {
+        "parcel_id": created_parcel["uid"],
+        "stats": [],
+    }.items() <= response.json().items()
+
+
+@pytest.mark.anyio
+async def test_get_parcel(async_client: AsyncClient, created_parcel: created_parcel):
+    response = await async_client.get(
+        f"{api_url_prefix}/parcels/{created_parcel['uid']}"
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_get_parcel_not_exists(async_client: AsyncClient):
+    response = await async_client.get(f"{api_url_prefix}/parcels/12344")
+    assert response.status_code == 404
