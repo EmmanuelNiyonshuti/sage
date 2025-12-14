@@ -24,11 +24,12 @@ class TimeSeriesScheduler:
     - Handle job failures gracefully
     """
 
-    def __init__(self):
+    def __init__(self, interval_duration: dict = {"hours": 24}):
         self.scheduler: BackgroundScheduler | None = None
         self._is_running = False
+        self.interval_duration = interval_duration
 
-    def start(self, check_interval_hours: int = 5):
+    def start(self, interval: dict | None = None):
         if self._is_running:
             logger.warning("Scheduler already running, ignoring start request")
             return
@@ -43,10 +44,10 @@ class TimeSeriesScheduler:
             timezone="UTC",
         )
 
-        # Schedule the periodic job
+        interval_trigger = interval or self.interval_duration
         self.scheduler.add_job(
             func=self._process_parcels_job,
-            trigger=IntervalTrigger(seconds=check_interval_hours),
+            trigger=IntervalTrigger(**interval_trigger),
             id="generate_time_series",
             name="Generate Time Series",
             replace_existing=True,
@@ -54,9 +55,9 @@ class TimeSeriesScheduler:
 
         self.scheduler.start()
         self._is_running = True
-
+        interval_name, interval_duration = next(iter(interval_trigger.items()))
         logger.info(
-            f"Scheduler started - checking for due parcels every {check_interval_hours} hour(s)"
+            f"Scheduler started - generating time_series for all parcels every {interval_duration} {interval_name}"
         )
 
     def stop(self):

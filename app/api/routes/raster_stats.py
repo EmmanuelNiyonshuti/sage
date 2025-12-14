@@ -1,28 +1,19 @@
 import logging
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from sqlalchemy import and_, desc, select
 
 from app.api.deps import SessionDep
-from app.models import Parcel, RasterStats
+from app.crud import find_parcel_by_id
+from app.models import RasterStats
 from app.models.schemas import (
     ParcelStatsListResponse,
     RasterStatsOut,
 )
 
-router = APIRouter(prefix="/parcels", tags=["Parcel Statistics"])
+router = APIRouter(prefix="/parcels", tags=["Stats"])
 logger = logging.getLogger(__name__)
-
-
-def find_parcel_by_id(parcel_id: str, db: SessionDep) -> Parcel:
-    stmt = select(Parcel).where(Parcel.uid == parcel_id)
-    parcel = db.execute(stmt).scalars().first()
-    if not parcel:
-        raise HTTPException(
-            status_code=404, detail=f"parcel with id {parcel_id} is not found"
-        )
-    return parcel
 
 
 @router.get(

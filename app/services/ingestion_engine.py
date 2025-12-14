@@ -11,7 +11,7 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 from typing import List
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.models import DataSource, IngestionJob, Parcel
@@ -146,18 +146,15 @@ class IngestionEngine:
         Returns:
             List of Parcel instances
         """
-        # now = datetime.now(UTC)
+        now = datetime.now(UTC)
         stmt = select(Parcel).where(
-            Parcel.is_active,
+            and_(
+                Parcel.is_active,
+                Parcel.auto_sync_enabled,
+                (Parcel.next_sync_scheduled_at <= now)
+                | (Parcel.next_sync_scheduled_at == None),
+            )
         )
-        # stmt = select(Parcel).where(
-        #     and_(
-        #         Parcel.is_active,
-        #         Parcel.auto_sync_enabled,
-        #         (Parcel.next_sync_scheduled_at == None)
-        #         | (Parcel.next_sync_scheduled_at <= now),
-        #     )
-        # )
 
         return list(db_s.execute(stmt).scalars().all())
 
