@@ -18,9 +18,7 @@ async def lifespan(app: FastAPI):
     configure_logging()
     if config.ENABLE_SCHEDULER:
         try:
-            ingestion_scheduler.start(
-                check_interval_hours=config.SHEDULER_INTERVAL_HOURS
-            )
+            ingestion_scheduler.start()
             time_series_scheduler.start()
         except Exception as e:
             logger.exception(f"Failed to start scheduler: {str(e)}")

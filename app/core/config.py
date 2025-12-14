@@ -15,18 +15,18 @@ class GlobalConfig(BaseConfig):
     SENTINEL_HUB_CLIENT_ID: str | None = None
     SENTINEL_HUB_CLIENT_SECRET: str | None = None
     ENABLE_SCHEDULER: bool = False
-    SHEDULER_INTERVAL_HOURS: int = 1
+    INGESTION_SHEDULER_INTERVAL_DURATION: dict = {"hours": 24}
+    TIMESERIES_SHEDULER_INTERVAL_DURATION: dict = {"hours": 24}
 
 
 class DevConfig(GlobalConfig):
     model_config = SettingsConfigDict(env_prefix="DEV_")
-    # ENABLE_SCHEDULER: bool = True
-    SHEDULER_INTERVAL_HOURS: int = 24
 
 
 class TestConfig(GlobalConfig):
     DATABASE_URL: str | None = None
     DB_FORCE_ROLL_BACK: bool = True
+    ENABLE_SCHEDULER: bool = True
     model_config = SettingsConfigDict(env_prefix="TEST_")
 
 
@@ -34,6 +34,7 @@ class ProdConfig(GlobalConfig):
     DATABASE_URL: str | None = None
     ENABLE_SCHEDULER: bool = True
     model_config = SettingsConfigDict(env_prefix="PROD_")
+    INGESTION_SHEDULER_INTERVAL_DURATION: dict = {"hours": 1}
 
 
 @lru_cache()
