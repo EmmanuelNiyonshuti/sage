@@ -8,6 +8,7 @@ from app.api.main import api_router
 from app.core.config import config
 from app.logging_config import configure_logging
 from app.scheduler.ingestion_scheduler import ingestion_scheduler
+from app.scheduler.time_series_scheduler import time_series_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +21,17 @@ async def lifespan(app: FastAPI):
             ingestion_scheduler.start(
                 check_interval_hours=config.SHEDULER_INTERVAL_HOURS
             )
+            time_series_scheduler.start()
         except Exception as e:
             logger.exception(f"Failed to start scheduler: {str(e)}")
     yield
     if ingestion_scheduler.is_running():
         try:
             ingestion_scheduler.stop()
-            logger.exception("scheduler stopped")
         except Exception as e:
             logger.exception(f"failed stopping scheduler, {str(e)}")
+    if time_series_scheduler.is_running():
+        time_series_scheduler.stop()
 
 
 app = FastAPI(
@@ -45,30 +48,3 @@ app.add_middleware(CorrelationIdMiddleware)
 
 
 app.include_router(api_router)
-
-
-@app.get("/ping")
-def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "pong",
-        "scheduler_running": ingestion_scheduler.is_running(),
-    }
-
-
-@app.get("/scheduler/status")
-def scheduler_status():
-    jobs = ingestion_scheduler.get_jobs()
-    return {
-        "running": ingestion_scheduler.is_running(),
-        "jobs": [
-            {
-                "id": job.id,
-                "name": job.name,
-                "next_run": job.next_run_time.isoformat()
-                if job.next_run_time
-                else None,
-            }
-            for job in jobs
-        ],
-    }

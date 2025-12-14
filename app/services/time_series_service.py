@@ -1,14 +1,9 @@
-"""
-Time series processing service.
-
-Aggregates raw raster_stats into time_series for trend analysis.
-"""
-
 import logging
 from datetime import date, timedelta
 from typing import List
 
 from sqlalchemy import and_, func, select
+from sqlalchemy.orm import Session
 
 from app.models import Parcel, RasterStats, TimeSeries
 
@@ -19,10 +14,9 @@ class TimeSeriesService:
     """
     Processes raw statistics into time series aggregations.
 
-    - Aggregate daily data into weekly/monthly periods
+    - collects daily data into weekly/monthly periods
     - Calculate period-over-period changes
     - Detect statistical anomalies
-    - Fill gaps in data
     """
 
     def __init__(self, session_factory):
@@ -30,6 +24,7 @@ class TimeSeriesService:
 
     def generate_weekly_time_series(
         self,
+        db_session: Session,
         parcel_id: str,
         metric_type: str = "NDVI",
         start_date: date | None = None,
@@ -39,11 +34,11 @@ class TimeSeriesService:
         Generate weekly time series for a parcel.
 
         Groups raw daily stats into weekly averages.
-        start and end date will be in the range of the raw stats acquisition dates
+        start and end date will be in the range of the raw raster stats acquisition dates
 
         Args:
             parcel_id: Parcel UUID
-            metric_type: Metric to aggregate (default: NDVI)
+            metric_type: The index type to aggregate (default: NDVI)
             start_date: Start of range (default: earliest data)
             end_date: End of range (default: latest data)
 
@@ -53,8 +48,9 @@ class TimeSeriesService:
         logger.info(
             f"Generating weekly time series for parcel {parcel_id}, metric {metric_type}"
         )
-
-        raw_stats = self._get_raw_stats(parcel_id, metric_type, start_date, end_date)
+        raw_stats = self._get_raw_stats(
+            db_session, parcel_id, metric_type, start_date, end_date
+        )
 
         if not raw_stats:
             logger.warning(f"No raw stats found for parcel {parcel_id}")
@@ -78,12 +74,14 @@ class TimeSeriesService:
                 ) * 100
 
             is_anomaly = self._is_anomaly(
+                db_session,
                 parcel_id,
                 metric_type,
                 mean_value,
                 week_start,
             )
             exists = self._time_series_exists(
+                db_session,
                 parcel_id,
                 metric_type,
                 "weekly",
@@ -103,18 +101,19 @@ class TimeSeriesService:
                     is_anomaly=is_anomaly,
                 )
 
-                self.db.add(ts)
+                db_session.add(ts)
                 created_count += 1
 
             previous_value = mean_value
 
-        self.db.commit()
+        db_session.commit()
 
         logger.info(f"Created {created_count} weekly time series records")
         return created_count
 
     def generate_monthly_time_series(
         self,
+        db_session: Session,
         parcel_id: str,
         metric_type: str = "NDVI",
     ) -> int:
@@ -123,7 +122,7 @@ class TimeSeriesService:
         """
         logger.info(f"Generating monthly time series for parcel {parcel_id}")
 
-        raw_stats = self._get_raw_stats(parcel_id, metric_type)
+        raw_stats = self._get_raw_stats(db_session, parcel_id, metric_type)
 
         if not raw_stats:
             return 0
@@ -133,36 +132,29 @@ class TimeSeriesService:
         previous_value = None
 
         for (year, month), month_data in sorted(monthly_groups.items()):
-            # First day of month
             month_start = date(year, month, 1)
-
-            # Last day of month
             if month == 12:
                 month_end = date(year + 1, 1, 1) - timedelta(days=1)
             else:
                 month_end = date(year, month + 1, 1) - timedelta(days=1)
-
-            # Calculate average
             mean_value = sum(s.mean_value for s in month_data) / len(month_data)
 
-            # Calculate change
             change_from_previous = None
             if previous_value is not None:
                 change_from_previous = (
                     (mean_value - previous_value) / previous_value
                 ) * 100
 
-            # Check anomaly
             is_anomaly = self._is_anomaly(
+                db_session,
                 parcel_id,
                 metric_type,
                 mean_value,
                 month_start,
             )
 
-            # Check exists
             if not self._time_series_exists(
-                parcel_id, metric_type, "monthly", month_start
+                db_session, parcel_id, metric_type, "monthly", month_start
             ):
                 ts = TimeSeries(
                     parcel_id=parcel_id,
@@ -175,12 +167,12 @@ class TimeSeriesService:
                     is_anomaly=is_anomaly,
                 )
 
-                self.db.add(ts)
+                db_session.add(ts)
                 created_count += 1
 
             previous_value = mean_value
 
-        self.db.commit()
+        db_session.commit()
 
         logger.info(f"Created {created_count} monthly time series records")
         return created_count
@@ -195,48 +187,49 @@ class TimeSeriesService:
             Summary of processing
         """
         logger.info("Processing time series for all parcels")
+        with self.session_factory() as db_s:
+            stmt = select(Parcel).where(Parcel.is_active.is_(True))
+            parcels = db_s.execute(stmt).scalars().all()
+            results = {
+                "total_parcels": len(parcels),
+                "succeeded": 0,
+                "failed": 0,
+                "weekly_created": 0,
+                "monthly_created": 0,
+            }
 
-        stmt = select(Parcel).where(Parcel.is_active.is_(True))
-        parcels = self.db.execute(stmt).scalars().all()
-        results = {
-            "total_parcels": len(parcels),
-            "succeeded": 0,
-            "failed": 0,
-            "weekly_created": 0,
-            "monthly_created": 0,
-        }
+            for parcel in parcels:
+                try:
+                    weekly = self.generate_weekly_time_series(db_s, parcel.uid)
+                    results["weekly_created"] += weekly
+                    monthly = self.generate_monthly_time_series(db_s, parcel.uid)
+                    results["monthly_created"] += monthly
+                    results["succeeded"] += 1
 
-        for parcel in parcels:
-            try:
-                weekly = self.generate_weekly_time_series(parcel.uid)
-                results["weekly_created"] += weekly
-                monthly = self.generate_monthly_time_series(parcel.uid)
-                results["monthly_created"] += monthly
-                results["succeeded"] += 1
+                except Exception:
+                    logger.exception(
+                        f"Failed to process time series for parcel {parcel.uid}"
+                    )
+                    results["failed"] += 1
 
-            except Exception:
-                logger.exception(
-                    f"Failed to process time series for parcel {parcel.uid}"
-                )
-                results["failed"] += 1
+            logger.info(
+                f"Time series processing complete: "
+                f"{results['succeeded']} succeeded, {results['failed']} failed, "
+                f"{results['weekly_created']} weekly, {results['monthly_created']} monthly"
+            )
 
-        logger.info(
-            f"Time series processing complete: "
-            f"{results['succeeded']} succeeded, {results['failed']} failed, "
-            f"{results['weekly_created']} weekly, {results['monthly_created']} monthly"
-        )
-
-        return results
+            return results
 
     # helpers
     def _get_raw_stats(
         self,
+        db_session: Session,
         parcel_id: str,
         metric_type: str,
         start_date: date | None = None,
         end_date: date | None = None,
     ) -> List[RasterStats]:
-        """Get raw statistics for aggregation."""
+        """Get raw statistics for a given parcel, metric/index type with optional date ranges."""
 
         conditions = [
             RasterStats.parcel_id == parcel_id,
@@ -252,7 +245,7 @@ class TimeSeriesService:
             .order_by(RasterStats.acquisition_date)
         )
 
-        return list(self.db.execute(stmt).scalars().all())
+        return list(db_session.execute(stmt).scalars().all())
 
     def _group_by_week(self, stats: List[RasterStats]) -> dict[date, List[RasterStats]]:
         """
@@ -264,14 +257,14 @@ class TimeSeriesService:
         weeks = {}
 
         for stat in stats:
-            week_start = stat.acquisition_date - timedelta(
+            week_start_dt = stat.acquisition_date - timedelta(
                 days=stat.acquisition_date.weekday()
             )  # zero based weekdays , isoweekday for 1 based!
 
-            if week_start not in weeks:
-                weeks[week_start] = []
+            if week_start_dt not in weeks:
+                weeks[week_start_dt] = []
 
-            weeks[week_start].append(stat)
+            weeks[week_start_dt].append(stat)
 
         return weeks
 
@@ -298,6 +291,7 @@ class TimeSeriesService:
 
     def _is_anomaly(
         self,
+        db_session: Session,
         parcel_id: str,
         metric_type: str,
         current_value: float,
@@ -306,8 +300,7 @@ class TimeSeriesService:
         """
         Detect if current value is anomalous.
 
-        Uses simple statistical method:
-        - Get historical average and std dev
+        - Gets historical average and std dev , past 30 days
         - If current value is >2 standard deviations away, it's an anomaly
 
         Args:
@@ -329,7 +322,7 @@ class TimeSeriesService:
             RasterStats.acquisition_date < current_date - timedelta(days=30),
         )
 
-        result = self.db.execute(stmt).first()
+        result = db_session.execute(stmt).first()
 
         if not result or result.avg is None or result.stddev is None:
             return False
@@ -354,6 +347,7 @@ class TimeSeriesService:
 
     def _time_series_exists(
         self,
+        db_session: Session,
         parcel_id: str,
         metric_type: str,
         time_period: str,
@@ -368,4 +362,4 @@ class TimeSeriesService:
             TimeSeries.start_date == start_date,
         )
 
-        return self.db.execute(stmt).scalar_one_or_none() is not None
+        return db_session.execute(stmt).scalar_one_or_none() is not None
