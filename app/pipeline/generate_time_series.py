@@ -10,7 +10,7 @@ from app.models import Parcel, RasterStats, TimeSeries
 logger = logging.getLogger(__name__)
 
 
-class TimeSeriesService:
+class GenerateTimeSeries:
     """
     Processes raw statistics into time series aggregations.
 

@@ -10,7 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.core.database import session_factory
-from app.services.ingestion_engine import IngestionEngine
+from app.pipeline.ingestion_engine import IngestionEngine
 
 logger = logging.getLogger(__name__)
 

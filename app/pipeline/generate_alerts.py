@@ -9,7 +9,7 @@ from app.models import Alerts, Parcel, RasterStats, TimeSeries
 logger = logging.getLogger(__name__)
 
 
-class AlertService:
+class GenerateAlerts:
     """
     Generates alerts based on vegetation index
 

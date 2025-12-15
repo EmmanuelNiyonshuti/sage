@@ -5,7 +5,7 @@ from geoalchemy2.types import WKBElement
 from shapely.geometry import Polygon, shape
 
 from app.core.database import session_factory
-from app.services.ingestion_engine import IngestionEngine
+from app.pipeline.ingestion_engine import IngestionEngine
 
 logger = logging.getLogger(__name__)
 

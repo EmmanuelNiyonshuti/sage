@@ -10,7 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.core.database import session_factory
-from app.services.time_series_service import TimeSeriesService
+from app.pipeline.generate_time_series import GenerateTimeSeries
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class TimeSeriesScheduler:
 
     - Start/stop the scheduler
     - Schedule periodic parcel processing
-    - Handle job failures gracefully
+    - Handle job failures
     """
 
     def __init__(self, interval_duration: dict = {"hours": 24}):
@@ -83,7 +83,7 @@ class TimeSeriesScheduler:
         logger.info("Scheduler triggered: checking for due parcels")
 
         try:
-            time_series = TimeSeriesService(session_factory)
+            time_series = GenerateTimeSeries(session_factory)
             results = time_series.process_all_parcels()
 
             logger.info(
