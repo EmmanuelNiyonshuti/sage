@@ -25,7 +25,7 @@ class Alerts(Base):
     alert_type: so.Mapped[str] = so.mapped_column(
         sa.String(100),
         nullable=False,
-        comment="drought_risk, vegetation_decline, anomaly, pest_stress, etc.",
+        comment="drought_risk, vegetation_decline.",
     )
 
     severity: so.Mapped[str] = so.mapped_column(
