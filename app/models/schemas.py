@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -104,7 +104,7 @@ class ParcelStatsRequest(BaseModel):
     parcel_id: str
 
 
-class RasterStatsOut(BaseModel):
+class RawRasterStatsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     metric_type: str
     mean_value: float
@@ -117,7 +117,26 @@ class RasterStatsOut(BaseModel):
 
 class ParcelStatsListResponse(ParcelStatsRequest):
     parcel_id: str
-    stats: list[RasterStatsOut]
+    stats: list[RawRasterStatsOut]
+    total: int | None = None
+    limit: int
+    offset: int
+
+
+class TimeSeriesStats(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    metric_type: str
+    time_period: str
+    start_date: date
+    end_date: date
+    value: float | int
+    change_from_previous: float | None
+    is_anomaly: bool | None
+
+
+class TimeSeriesResponse(BaseModel):
+    parcel_id: str
+    stats: list[TimeSeriesStats]
     total: int | None = None
     limit: int
     offset: int
