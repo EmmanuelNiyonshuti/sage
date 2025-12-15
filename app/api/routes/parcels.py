@@ -14,12 +14,12 @@ from app.utils import (
     trigger_backfill_for_parcel,
 )
 
-router = APIRouter(prefix="/parcels", tags=["Parcels"])
+router = APIRouter(tags=["Parcels"])
 logger = logging.getLogger(__name__)
 
 
 @router.post(
-    "/",
+    "/parcels",
     response_model=ParcelResponse,
     status_code=201,
     summary="Create a new parcel",
