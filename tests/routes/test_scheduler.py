@@ -5,6 +5,18 @@ from httpx import AsyncClient
 
 
 @pytest.mark.anyio
+@patch("app.scheduler.ingestion_scheduler.IngestionScheduler._process_due_parcels_job")
+async def test_ingestion_scheduler_runs(mock_job, async_client: AsyncClient):
+    from app.scheduler.ingestion_scheduler import ingestion_scheduler
+
+    ingestion_scheduler.start({"seconds": 1})
+    for job in ingestion_scheduler.get_jobs():
+        job.func()
+    assert mock_job.called
+    assert ingestion_scheduler.is_running()
+
+
+@pytest.mark.anyio
 @patch("app.scheduler.time_series_scheduler.TimeSeriesScheduler._process_parcels_job")
 async def test_timeseries_scheduler_runs(mock_job, async_client: AsyncClient):
     from app.scheduler.time_series_scheduler import time_series_scheduler
@@ -17,12 +29,12 @@ async def test_timeseries_scheduler_runs(mock_job, async_client: AsyncClient):
 
 
 @pytest.mark.anyio
-@patch("app.scheduler.ingestion_scheduler.IngestionScheduler._process_due_parcels_job")
-async def test_ingestion_scheduler_runs(mock_job, async_client: AsyncClient):
-    from app.scheduler.ingestion_scheduler import ingestion_scheduler
+@patch("app.scheduler.alerts_scheduler.GenerateAlertsScheduler._process_parcels_job")
+async def test_generate_alerts_scheduler_runs(mock_job, async_client: AsyncClient):
+    from app.scheduler.alerts_scheduler import generate_alerts_scheduler
 
-    ingestion_scheduler.start({"seconds": 1})
-    for job in ingestion_scheduler.get_jobs():
+    generate_alerts_scheduler.start({"seconds": 1})
+    for job in generate_alerts_scheduler.get_jobs():
         job.func()
     assert mock_job.called
-    assert ingestion_scheduler.is_running()
+    assert generate_alerts_scheduler.is_running()

@@ -114,8 +114,11 @@ class GenerateAlerts:
         percent_change = ((current_avg - previous_avg) / previous_avg) * 100
 
         if percent_change < -15:
-            if not self._active_alert_exists(parcel_id, "vegetation_decline"):
+            if not self._active_alert_exists(
+                db_session, parcel_id, "vegetation_decline"
+            ):
                 self._create_alert(
+                    db_session,
                     parcel_id=parcel_id,
                     alert_type="vegetation_decline",
                     severity="high",
@@ -124,9 +127,9 @@ class GenerateAlerts:
                         f"NDVI dropped from {previous_avg:.2f} to {current_avg:.2f}."
                     ),
                     metadata={
-                        "current_ndvi": current_avg,
-                        "previous_ndvi": previous_avg,
-                        "percent_change": percent_change,
+                        "current_ndvi": float(current_avg),
+                        "previous_ndvi": float(previous_avg),
+                        "percent_change": float(percent_change),
                     },
                 )
                 return True
@@ -160,8 +163,9 @@ class GenerateAlerts:
         if all_low:
             avg_ndvi = sum(w.value for w in recent_weeks) / len(recent_weeks)
 
-            if not self._active_alert_exists(parcel_id, "drought_stress"):
+            if not self._active_alert_exists(db_session, parcel_id, "drought_stress"):
                 self._create_alert(
+                    db_session,
                     parcel_id=parcel_id,
                     alert_type="drought_stress",
                     severity="critical",
@@ -171,8 +175,8 @@ class GenerateAlerts:
                         f"Possible drought stress."
                     ),
                     metadata={
-                        "avg_ndvi": avg_ndvi,
-                        "threshold": threshold,
+                        "avg_ndvi": float(avg_ndvi),
+                        "threshold": float(threshold),
                         "weeks_below": 3,
                     },
                 )
@@ -197,8 +201,9 @@ class GenerateAlerts:
         if anomalies:
             latest_anomaly = max(anomalies, key=lambda a: a.start_date)
 
-            if not self._active_alert_exists(parcel_id, "anomaly"):
+            if not self._active_alert_exists(db_session, parcel_id, "anomaly"):
                 self._create_alert(
+                    db_session,
                     parcel_id=parcel_id,
                     alert_type="anomaly",
                     severity="medium",
@@ -233,8 +238,9 @@ class GenerateAlerts:
         latest = db_session.execute(stmt).scalar_one_or_none()
 
         if not latest:
-            if not self._active_alert_exists(parcel_id, "no_data"):
+            if not self._active_alert_exists(db_session, parcel_id, "no_data"):
                 self._create_alert(
+                    db_session,
                     parcel_id=parcel_id,
                     alert_type="no_data",
                     severity="low",
@@ -244,8 +250,9 @@ class GenerateAlerts:
                 return True
 
         elif (date.today() - latest.acquisition_date).days > 14:
-            if not self._active_alert_exists(parcel_id, "stale_data"):
+            if not self._active_alert_exists(db_session, parcel_id, "stale_data"):
                 self._create_alert(
+                    db_session,
                     parcel_id=parcel_id,
                     alert_type="stale_data",
                     severity="low",

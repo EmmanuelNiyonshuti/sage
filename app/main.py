@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.api.main import api_router
 from app.core.config import config
 from app.logging_config import configure_logging
+from app.scheduler.alerts_scheduler import generate_alerts_scheduler
 from app.scheduler.ingestion_scheduler import ingestion_scheduler
 from app.scheduler.time_series_scheduler import time_series_scheduler
 
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI):
         try:
             ingestion_scheduler.start()
             time_series_scheduler.start()
+            generate_alerts_scheduler.start()
         except Exception as e:
             logger.exception(f"Failed to start scheduler: {str(e)}")
     yield

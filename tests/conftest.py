@@ -37,10 +37,10 @@ def db():
 def db_session(db) -> Generator[Session, None, None]:
     connection = engine.connect()
     transaction = connection.begin()
-    session_local = sessionmaker(
+    session_factory = sessionmaker(
         bind=connection, autocommit=False, autoflush=False, expire_on_commit=False
     )
-    session = session_local()
+    session = session_factory()
     yield session
     session.close()
     transaction.rollback()
