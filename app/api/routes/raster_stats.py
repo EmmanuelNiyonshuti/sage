@@ -9,20 +9,19 @@ from app.crud import find_parcel_by_id
 from app.models import RasterStats
 from app.models.schemas import (
     ParcelStatsListResponse,
-    RasterStatsOut,
+    RawRasterStatsOut,
 )
 
-router = APIRouter(prefix="/parcels", tags=["Stats"])
+router = APIRouter(tags=["Raw stats"])
 logger = logging.getLogger(__name__)
 
 
 @router.get(
-    "/{parcel_id}/stats",
+    "/{parcel_id}/raw-stats",
     response_model=ParcelStatsListResponse,
-    summary="Get parcel statistics",
-    description="Get time-series statistics for a parcel with optional filtering",
+    summary="Get raw parcel stats",
 )
-def get_parcel_stats(
+def get_parcel_raw_stats(
     parcel_id: str,
     db: SessionDep,
     metric_type: str | None = Query(
@@ -60,7 +59,7 @@ def get_parcel_stats(
 
     return ParcelStatsListResponse(
         parcel_id=parcel_id,
-        stats=[RasterStatsOut.model_validate(s) for s in stats],
+        stats=[RawRasterStatsOut.model_validate(s) for s in stats],
         total=total,
         limit=limit,
         offset=offset,
