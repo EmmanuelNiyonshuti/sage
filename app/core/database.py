@@ -6,7 +6,7 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import config
 
-engine = create_engine(config.DATABASE_URL)
+engine = create_engine(str(config.DATABASE_URL))
 
 session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 

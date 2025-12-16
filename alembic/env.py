@@ -18,7 +18,7 @@ logger = logging.getLogger("alembic.env")
 
 # Validate DATABASE_URI before proceeding
 try:
-    db_url = app_config.DATABASE_URL
+    db_url = str(app_config.DATABASE_URL)
     if not db_url:
         raise ValueError("DATABASE_URI is not set in application configuration")
 
