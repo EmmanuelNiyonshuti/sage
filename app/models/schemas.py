@@ -96,8 +96,10 @@ class ParcelResponse(BaseModel):
 class ParcelListResponse(BaseModel):
     """Schema for list of fields."""
 
-    fields: list[ParcelResponse]
+    parcels: list[ParcelResponse]
     total: int
+    limit: int
+    offset: int
 
 
 class ParcelStatsRequest(BaseModel):
@@ -140,3 +142,13 @@ class TimeSeriesResponse(BaseModel):
     total: int | None = None
     limit: int
     offset: int
+
+
+class ParcelListParams(BaseModel):
+    """Query parameters for listing parcels."""
+
+    limit: Annotated[int, Field(ge=1, le=100)] = 50
+    offset: Annotated[int, Field(ge=0)] = 0
+    is_active: bool | None = None
+    crop_type: str | None = None
+    search: str | None = Field(None, description="Search by parcel name")

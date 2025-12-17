@@ -4,12 +4,9 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import ValidationError
 
 from app.api.deps import SessionDep
-from app.crud import find_parcel_by_id
+from app.crud import find_parcel_by_id, list_parcels
 from app.models import Parcel
-from app.models.schemas import (
-    ParcelCreate,
-    ParcelResponse,
-)
+from app.models.schemas import ParcelCreate, ParcelListResponse, ParcelResponse
 from app.utils import (
     trigger_backfill_for_parcel,
 )
@@ -66,6 +63,55 @@ def create_parcel(
         raise HTTPException(
             status_code=500,
             detail=f"an error occured adding a parcel, please try again. {e}",
+        )
+
+
+@router.get(
+    "/parcels",
+    response_model=ParcelListResponse,
+    status_code=200,
+    summary="List all parcels",
+    description="Get a paginated list of parcels",
+)
+def get_parcels(
+    db: SessionDep,
+    limit: int = Query(50, ge=1, le=100, description="Number of results to return"),
+    offset: int = Query(0, ge=0, description="Number of results to skip"),
+    is_active: bool | None = Query(None, description="Filter by active status"),
+    crop_type: str | None = Query(None, description="Filter by crop type"),
+    search: str | None = Query(
+        None, description="Search by parcel name (case-insensitive)"
+    ),
+):
+    try:
+        parcels, total = list_parcels(
+            db,
+            limit=limit,
+            offset=offset,
+            is_active=is_active,
+            crop_type=crop_type,
+            search=search,
+        )
+        parcel_responses = [ParcelResponse.model_validate(p) for p in parcels]
+
+        return ParcelListResponse(
+            parcels=parcel_responses,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    except ValidationError as e:
+        logger.exception(e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to serialize parcel data",
+        )
+    except Exception as e:
+        logger.exception(f"Failed to list parcels: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred retrieving parcels: {str(e)}",
         )
 
 
