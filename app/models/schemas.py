@@ -9,7 +9,7 @@ from app.utils import geojson_to_shapely, shapely_to_wkbelement, wkb_to_geojson
 class GeometrySchema(BaseModel):
     """GeoJSON Polygon geometry."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(validate_by_name=True, validate_by_alias=True)
     geometry_type: Annotated[
         str, Field(pattern="^Polygon$", alias="type", serialization_alias="type")
     ]
@@ -47,7 +47,7 @@ class ParcelCreate(BaseModel):
     """Schema for creating a new field."""
 
     name: Annotated[str, Field(min_length=5, max_length=255)]
-    geometry: Any
+    geometry: Any  # set to Any because of the before convert_geojson_to_wkb validator
 
     crop_type: Annotated[str | None, Field(min_length=3, max_length=100)]
     soil_type: Annotated[str | None, Field(min_length=3, max_length=100)]
