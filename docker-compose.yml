@@ -1,5 +1,4 @@
 services:
-  # FastAPI Application
   web:
     build: .
     container_name: sg-web
@@ -11,16 +10,16 @@ services:
       db:
         condition: service_healthy
     volumes:
-      # Hot-reload code changes
-      - ./app:/code/app
-      - ./alembic:/code/alembic
-      - ./tests:/code/tests
-    command: fastapi dev app/main.py --host 0.0.0.0 --port 8000
+      # Format: ./host/path:/container/path
+      - ./app:/sage/app
+      - ./alembic:/sage/alembic
+      - ./tests:/sage/tests
+    command: uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
     restart: unless-stopped
-
-  # PostgreSQL Database
+    networks:
+      - sg-network
   db:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4
     container_name: sg-db
     env_file:
       - .env
@@ -28,14 +27,17 @@ services:
      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - sg-network
 
-  # Streamlit Dashboard (optional - run when needed)
+  # Streamlit Dashboard (optional)
   dashboard:
     build: .
     container_name: sg-dashboard
@@ -47,12 +49,18 @@ services:
       - web
       - db
     volumes:
-      - ./tools:/code/tools
-      - ./app:/code/app  # So dashboard can import from app
-    command: streamlit run tools/visualizer/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+      - ./tools:/sage/tools
+      - ./app:/sage/app
+    command: uv run streamlit run tools/visualizer/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
     profiles:
       - dashboard  # Only starts when explicitly run
     restart: unless-stopped
+    networks:
+      - sg-network
 
 volumes:
   postgres_data:
+
+networks:
+  sg-network:
+    driver: bridge
