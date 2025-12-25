@@ -1,300 +1,219 @@
 """
-Ingestion Engine - Creates and manages ingestion jobs.
-
-1. Determines what data needs to be fetched
-2. Creates IngestionJob records
-3. Executes jobs via IngestionService
-4. Handles scheduling and retries
+ingesting satellite NDVI data into the database.
 """
 
 import logging
-from datetime import UTC, date, datetime, timedelta
-from typing import List
+from datetime import UTC, date, datetime
+from typing import Any
 
-from sqlalchemy import and_, select
+from geoalchemy2.shape import to_shape
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import DataSource, IngestionJob, Parcel
-
-from .ingestion_service import IngestionService
+from app.clients.sentinel_hub import sentinel_client
+from app.constants.evalscripts import NDVI_EVALSCRIPT
+from app.models import IngestionJob, Parcel, RasterStats
 
 logger = logging.getLogger(__name__)
 
 
-class UpToDateError(Exception):
-    pass
-
-
 class IngestionEngine:
     """
-    Orchestrates/organize ingestion jobs for parcels.
-
-    Responsibilities:
-    - Calculate what data to fetch and when
-    - Create ingestion jobs
-    - Execute jobs
+    Service for ingesting satellite NDVI data into the database.
     """
 
     def __init__(self, session_factory):
         self.session_factory = session_factory
-        self.ingestion_service = IngestionService(self.session_factory)
 
-    def trigger_initial_backfill(
-        self, parcel_id: str, lookback_days: int = 90
-    ) -> IngestionJob:
+    def ingest_with_job_tracking(self, db_s: Session, job: IngestionJob):
+        logger.info(f"starting ingestion for parcel with id {job.parcel_id}")
+        job.status = "running"
+        job.started_at = datetime.now(UTC)
+        db_s.commit()
+        try:
+            parcel_boundary_geojson_obj = self.get_parcel_geometry(job.parcel_id)
+            response = sentinel_client.get_statistics(
+                parcel_boundary_geojson_obj,
+                job.requested_start_date,
+                job.requested_end_date,
+                NDVI_EVALSCRIPT,
+            )
+            created, skipped, acquisition_dates = 0, 0, []
+            for interval_data in response.get("data", []):
+                try:
+                    acq_date = self.parse_acquisition_date(
+                        interval_data["interval"]["from"]
+                    )
+                    stats = self.extract_stats(interval_data)
+                    already_exists = self.record_exists(
+                        db_s, job.parcel_id, acq_date, job.metric_type
+                    )
+                    if already_exists:
+                        logger.debug(
+                            f"Record already exists for {job.parcel_id}"
+                            f"on {acq_date} skiping"
+                        )
+                        skipped += 1
+                        continue
+                    self._create_raster_stat(
+                        db_s,
+                        job.parcel_id,
+                        acq_date,
+                        job.metric_type,
+                        job.data_source_id,
+                        stats,
+                        interval_data,
+                    )
+                    created += 1
+                    acquisition_dates.append(acq_date)
+                except Exception as e:
+                    # Logs but continue with other intervals
+                    logger.error(
+                        f"Failed to process interval for date "
+                        f"{interval_data.get('interval', {}).get('from')}: {e}"
+                    )
+            if created > 0:
+                job.status = "completed"
+                job.actual_start_date = min(acquisition_dates)
+                job.actual_end_date = max(acquisition_dates)
+                db_s.commit()
+            elif skipped > 0:
+                job.status = "completed"  # All already existed
+                db_s.commit()
+            else:
+                job.status = "partial"  # Requested data not available
+                db_s.commit()
+            job.records_created = created
+            job.records_skipped = skipped
+            job.completed_at = datetime.now(UTC)
+            db_s.commit()
+
+            if created > 0:
+                self._update_parcel_metadata(
+                    db_s, job.parcel_id, max(acquisition_dates)
+                )
+
+            logger.info(
+                f"Job {job.uid} completed: {created} created, {skipped} skipped"
+            )
+
+            return job
+
+        except Exception as e:
+            job.status = "failed"
+            job.error_message = str(e)
+            job.completed_at = datetime.now(UTC)
+            job.retry_count += 1
+            db_s.commit()
+
+            logger.exception(f"Job {job.uid} failed: {e}")
+            raise
+
+    def get_parcel_geometry(self, parcel_id: str) -> dict[str, Any]:
+        with self.session_factory() as db_s:
+            parcel = db_s.get(Parcel, parcel_id)
+        if parcel is None:
+            raise ValueError(f"parcel with id {parcel_id} is not found")
+        if not parcel.is_active:
+            raise ValueError(f"parcel with id {parcel_id} is not active")
+        # convert PostGis to shapely
+        polygon_shape = to_shape(parcel.geometry)
+        # convert to geojson
+        return {"type": "Polygon", "coordinates": [list(polygon_shape.exterior.coords)]}
+
+    def parse_acquisition_date(self, acq_date: str) -> date:
+        return datetime.fromisoformat(acq_date).date()
+
+    def extract_stats(self, interval_data: dict[str, Any]) -> dict[str, Any]:
+        stats = (
+            interval_data.get("outputs", {})
+            .get("default", {})
+            .get("bands", {})
+            .get("B0", {})
+            .get("stats", {})
+        )
+        if not stats:
+            raise ValueError("No statistics found in interval data")
+
+        return stats
+
+    def record_exists(
+        self, db_s: Session, parcel_id: str, acquisition_date: date, metric_type: str
+    ) -> bool:
+        exist_stmt = select(RasterStats).where(
+            RasterStats.acquisition_date == acquisition_date,
+            RasterStats.parcel_id == parcel_id,
+            RasterStats.metric_type == metric_type,
+        )
+        return db_s.scalar(exist_stmt) is not None
+
+    def _create_raster_stat(
+        self,
+        db_s: Session,
+        parcel_id: str,
+        acquisition_date: date,
+        metric_type: str,
+        satellite_source_id: str,
+        stats: dict[str, Any],
+        raw_metadata: dict[str, Any],
+    ) -> RasterStats:
         """
-        Trigger initial historical data backfill for a newly created parcel.
-
-        This creates and executes a job to fetch historical data.
+        Create a new raster_stats database record.
 
         Args:
             parcel_id: Parcel UUID
-            lookback_days: How many days of history to fetch (default: 90)
+            acquisition_date: Date of satellite acquisition
+            metric_type: Type of vegetation index (NDVI, NDMI, etc.)
+            satellite_source: Data source name (sentinel-2-l2a, etc.)
+            stats: Statistics dictionary from API response
+            raw_metadata: Full interval data for debugging
 
         Returns:
-            Completed IngestionJob
-
-        Raises:
-            ValueError: If parcel not found
+            Created RasterStats instance (not yet committed)
         """
-        with self.session_factory() as db_s:
-            parcel = db_s.get(Parcel, parcel_id)
-            if parcel is None:
-                raise ValueError(f"parcel with {parcel_id} not found")
-            data_source = self._get_active_data_source(db_s)
-            safe_end_dt = self._calculate_safe_end_date(data_source)
-            start_dt = safe_end_dt - timedelta(days=lookback_days)
-
-            job = IngestionJob(
-                parcel_id=parcel_id,
-                requested_start_date=start_dt,
-                requested_end_date=safe_end_dt,
-                job_type="backfill",
-                data_source_id=data_source.uid,
-            )
-            db_s.add(job)
-            db_s.commit()
-            logger.info(f"Created backfill job {job.uid}")
-
-            # Execute job
-            try:
-                completed_job = self.ingestion_service.ingest_with_job_tracking(
-                    db_s, job
-                )
-                logger.info(
-                    f"Backfill completed for {parcel.name}: "
-                    f"{completed_job.records_created} records created"
-                )
-                return completed_job
-            except Exception:
-                logger.exception(f"Backfill failed for parcel {parcel_id}")
-                raise
-
-    def process_due_parcels(self) -> dict:
-        """
-        Process all parcels that are due for ingestion.
-
-        This is called by the scheduler to check for parcels needing updates.
-
-        Returns:
-            Summary dict with counts: total, succeeded, failed, skipped
-        """
-        logger.info("Starting scheduled ingestion check")
-
-        with self.session_factory() as db_s:
-            due_parcels = self._get_due_parcels(db_s)
-
-            due_parcels_len = len(due_parcels)
-            logger.info(f"Found {due_parcels_len} parcels due for ingestion")
-
-            results = {
-                "total": due_parcels_len,
-                "succeeded": 0,
-                "failed": 0,
-                "skipped": 0,
-            }
-
-            for parcel in due_parcels:
-                try:
-                    self._process_single_parcel(db_s, parcel)
-                    results["succeeded"] += 1
-
-                except UpToDateError:
-                    results["skipped"] += 1
-
-                except Exception:
-                    logger.exception(f"Failed to process parcel {parcel.uid}")
-                    results["failed"] += 1
-
-            logger.info(
-                f"Scheduled ingestion complete: "
-                f"{results['succeeded']} succeeded, "
-                f"{results['failed']} failed, "
-                f"{results['skipped']} skipped"
-            )
-
-            return results
-
-    def _get_due_parcels(self, db_s: Session) -> List[Parcel]:
-        """
-        Get list of parcels that need ingestion.
-
-        Returns parcels where:
-        - Active and sync enabled
-        - Next sync time is in the past (or null for new parcels)
-
-        Returns:
-            List of Parcel instances
-        """
-        now = datetime.now(UTC)
-        stmt = select(Parcel).where(
-            and_(
-                Parcel.is_active,
-                Parcel.auto_sync_enabled,
-                (Parcel.next_sync_scheduled_at <= now)
-                | (Parcel.next_sync_scheduled_at == None),
-            )
+        raster_stat = RasterStats(
+            parcel_id=parcel_id,
+            acquisition_date=acquisition_date,
+            data_source_id=satellite_source_id,
+            metric_type=metric_type,
+            mean_value=stats["mean"],
+            min_value=stats["min"],
+            max_value=stats["max"],
+            std_dev=stats.get("stDev"),
+            pixel_count=stats.get("sampleCount"),
+            cloud_cover_percent=None,  # Not directly available in stats response
+            raw_metadata=raw_metadata,
         )
 
-        return list(db_s.execute(stmt).scalars().all())
-
-    def _process_single_parcel(self, db_s: Session, parcel: Parcel):
-        """
-        Process ingestion for a single parcel.
-
-        Creates a job and executes it.
-
-        Args:
-            parcel: Parcel to process
-
-        Raises:
-            UpToDateError: If parcel is already current
-        """
-
-        try:
-            data_source = self._get_active_data_source(db_s)
-            start_dt, end_dt = self._determine_fetch_window(parcel, data_source)
-            logger.info(
-                f"Processing parcel {parcel.uid} ({parcel.name}) from data_source {data_source.name}"
-            )
-        except UpToDateError as e:
-            logger.info(str(e))
-            # Schedule next check
-            self._schedule_next_sync(parcel, data_source)
-            raise
-        job = IngestionJob(
-            parcel_id=parcel.uid,
-            requested_start_date=start_dt,
-            requested_end_date=end_dt,
-            job_type="periodic",
-            data_source_id=data_source.uid,
-        )
-        db_s.add(job)
+        db_s.add(raster_stat)
         db_s.commit()
-        try:
-            completed_job = self.ingestion_service.ingest_with_job_tracking(db_s, job)
-            self._schedule_next_sync(db_s, parcel, data_source)
+        return raster_stat
 
-            logger.info(
-                f"Processed {parcel.name}: {completed_job.records_created} records"
-            )
-
-        except Exception:
-            logger.exception(f"Failed to process parcel {parcel.uid}")
-            raise
-
-    def _get_active_data_source(
-        self, db_s, data_source_name: str = "sentinel-2-l2a"
-    ) -> DataSource:
+    def _update_parcel_metadata(self, db_s: Session, parcel_id: str, latest_date: date):
         """
-        Get the active data source (currently sentinel-2-l2a).
+        Update parcel's ingestion metadata after successful ingestion.
 
-        Returns:
-            DataSource instance
+        Updates:
+        - last_data_synced_at: Current timestamp
+        - latest_acquisition_date: Most recent satellite date
 
-        Raises:
-            ValueError: If no active data source found
-        """
-        stmt = select(DataSource).where(
-            DataSource.name == data_source_name, DataSource.is_active.is_(True)
-        )
-        data_source = db_s.scalar(stmt)
-        if not data_source:
-            raise ValueError("No active data source found. Run seeds first.")
-        return data_source
-
-    def _calculate_safe_end_date(self, data_source: DataSource) -> date:
-        """
-        Calculate safe end date accounting for availability lag.
-
-        Example:
-        - Today: Dec 10
-        - Sentinel-2 has 2-day lag
-        - Safe end date: Dec 8 (today - 2 days)
         Args:
-            data_source: DataSource configuration
-
-        Returns:
-            Safe end date
+            parcel_id: Parcel UUID
+            latest_date: Most recent acquisition date from this job
         """
-        today = date.today()
-        safe_end_date = today - timedelta(days=data_source.availability_lag_days)
+        parcel = db_s.get(Parcel, parcel_id)
 
+        if not parcel:
+            logger.warning(f"Parcel {parcel_id} not found during metadata update")
+            return
+        parcel.last_data_synced_at = datetime.now(UTC)
+        # Update latest acquisition date if newer
+        if (
+            parcel.latest_acquisition_date is None
+            or latest_date > parcel.latest_acquisition_date
+        ):
+            parcel.latest_acquisition_date = latest_date
         logger.debug(
-            f"Calculated safe end date: {safe_end_date} "
-            f"(today={today}, lag={data_source.availability_lag_days} for {data_source.name})"
+            f"Updated parcel {parcel_id} metadata: "
+            f"latest_acquisition_date={latest_date}"
         )
-
-        return safe_end_date
-
-    def _determine_fetch_window(
-        self, parcel: Parcel, data_source: DataSource
-    ) -> tuple[date, date]:
-        """
-        Determine what date range to fetch for a parcel.
-
-        1. If parcel has data, fetch from (latest_date + 1) to safe_end_date
-        2. If no data, backfill from (today - 90 days) to safe_end_date
-        3. If already up-to-date, raise UpToDateError
-
-        Args:
-            parcel: Parcel to fetch data for
-            data_source: DataSource configuration
-
-        Returns:
-            tuple: (start_date, end_date)
-
-        Raises:
-            UpToDateError: If parcel is already up-to-date
-        """
-        safe_end_dt = self._calculate_safe_end_date(data_source)
-
-        if parcel.latest_acquisition_date:
-            # Incremental fetch
-            start_dt = parcel.latest_acquisition_date + timedelta(days=1)
-        else:
-            # Initial backfill: get last 90 days default
-            start_dt = safe_end_dt - timedelta(days=90)
-
-        if start_dt > safe_end_dt:
-            raise UpToDateError(
-                f"Parcel {parcel.uid} is already up-to-date "
-                f"(latest: {parcel.latest_acquisition_date}, "
-                f"safe_end: {safe_end_dt})"
-            )
-
-        return start_dt, safe_end_dt
-
-    def _schedule_next_sync(
-        self, db_s: Session, parcel: Parcel, data_source: DataSource
-    ):
-        """
-        Schedule the next sync time for a parcel.
-
-        Args:
-            parcel: Parcel to schedule
-            data_source: DataSource configuration
-        """
-        next_sync = datetime.now(UTC) + timedelta(days=data_source.sync_frequency_days)
-        parcel.next_sync_scheduled_at = next_sync
-        logger.debug(f"Scheduled next sync for {parcel.uid} at {next_sync}")

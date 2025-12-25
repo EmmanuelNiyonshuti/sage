@@ -10,7 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from app.core.database import session_factory
-from app.pipeline.ingestion_engine import IngestionEngine
+from app.pipeline.ingestion_controller import IngestionController
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,6 @@ class IngestionScheduler:
 
     - Start/stop the scheduler
     - Schedule periodic parcel processing
-    - Handle job failures gracefully
     """
 
     def __init__(self, interval_duration: dict = {"hours": 24}):
@@ -83,8 +82,8 @@ class IngestionScheduler:
         logger.info("Scheduler triggered: checking for due parcels")
 
         try:
-            engine = IngestionEngine(session_factory)
-            results = engine.process_due_parcels()
+            ingestion_controller = IngestionController(session_factory)
+            results = ingestion_controller.process_due_parcels()
 
             logger.info(
                 f"Scheduled job completed: "
