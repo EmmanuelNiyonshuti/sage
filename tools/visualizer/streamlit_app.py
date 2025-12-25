@@ -393,9 +393,7 @@ elif page == "Create Parcel":
                                     st.json(result)
 
                                 # Button to go to dashboard
-                                if st.button(
-                                    "Go to Dashboard"
-                                ):  # raises streamlit exception
+                                if st.form_submit_button("Go to Dashboard"):
                                     st.session_state.selected_parcel = result.get("uid")
                                     st.rerun()
                         else:

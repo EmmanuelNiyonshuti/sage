@@ -1,7 +1,14 @@
+import pathlib
+import sys
+
 import httpx
 import streamlit as st
 
-API_BASE_URL = "http://localhost:8000/api/v1"
+root_path = pathlib.Path(__file__).parent.parent.parent.resolve()
+sys.path.insert(0, str(root_path))
+from app.core.config import config  # noqa: E402
+
+API_BASE_URL = config.API_BASE_URL
 
 
 def fetch_parcels():

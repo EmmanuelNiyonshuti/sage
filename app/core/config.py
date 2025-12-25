@@ -18,6 +18,7 @@ class GlobalConfig(BaseConfig):
     ENABLE_SCHEDULER: bool = False
     INGESTION_SHEDULER_INTERVAL_DURATION: dict = {"hours": 24}
     TIMESERIES_SHEDULER_INTERVAL_DURATION: dict = {"hours": 24}
+    API_BASE_URL: str | None = "http://localhost:8000/api/v1"
 
 
 class DevConfig(GlobalConfig):
