@@ -1,6 +1,20 @@
 # sage
 
-SAGE is a backend that utilize sentinel hub api to fetch agronomic data through scheduled jobs for a particular farm boundary(drawn on a map) referred to in the application as **parcels**, stores the data in relational database , builds time series and alerts over those data and expose them via a REST API for internal tools, dashboards, or other services.
+SAGE is a backend application that uses the Sentinel Hub API to periodically fetch NDVI
+(Normalized Difference Vegetation Index) data for farm boundaries (called **parcels** in the application).
+
+The data is stored in a relational database, aggregated into time series, and used to generate
+basic alerts such as vegetation decline, sustained low NDVI, or drought_risk.
+
+The API is meant to be used by things like:
+- Simple dashboards (maps, charts, alert lists)
+- Internal tools that need parcel-level vegetation trends
+- Experiments or analysis built on top of cleaned, structured NDVI data
+
+SAGE exposes everything through a REST API and focuses mainly on backend concerns:
+data ingestion, scheduling, processing, and alerting.
+
+There is also a small Streamlit-based dashboard for basic interaction and visualization.
 
 ## NOTE
 
