@@ -5,7 +5,7 @@ from geoalchemy2.types import WKBElement
 from shapely.geometry import Polygon, shape
 
 from app.core.database import session_factory
-from app.pipeline.ingestion_engine import IngestionEngine
+from app.pipeline.ingestion_controller import IngestionController
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 def trigger_backfill_for_parcel(parcel_id: str, lookback_days: int = 90):
     logger.info(f"Starting background backfill for parcel {parcel_id}")
     try:
-        engine = IngestionEngine(session_factory)
-        job = engine.trigger_initial_backfill(parcel_id, lookback_days=lookback_days)
+        controller = IngestionController(session_factory)
+        job = controller.trigger_initial_backfill(
+            parcel_id, lookback_days=lookback_days
+        )
         logger.info(
             f"Backfill completed for parcel {parcel_id}: "
             f"{job.records_created} records created"

@@ -53,7 +53,7 @@ target_metadata = Base.metadata
 
 def include_object(object, name, type_, reflected, compare_to):
     # Ignore PostGIS system tables
-    if type_ == "table" and name == "spatial_ref_sys":  # might add more later.
+    if type_ == "table" and name == "spatial_ref_sys":
         return False
     return True
 
