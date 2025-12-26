@@ -145,7 +145,7 @@ class IngestionController:
                 Parcel.is_active,
                 Parcel.auto_sync_enabled,
                 (Parcel.next_sync_scheduled_at <= now)
-                | (Parcel.next_sync_scheduled_at == None),
+                | (Parcel.next_sync_scheduled_at.is_(None)),
             )
         )
 
