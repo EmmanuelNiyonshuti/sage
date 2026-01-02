@@ -1,7 +1,7 @@
 import logging
 from datetime import date
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import and_, desc, select
 
 from app.api.deps import SessionDep
@@ -34,7 +34,11 @@ def get_parcel_raw_stats(
 ):
     logger.info(f"Getting stats for parcel {parcel_id}")
 
-    parcel = find_parcel_by_id(parcel_id, db)
+    parcel = find_parcel_by_id(parcel_id.strip(), db)
+    if not parcel:
+        raise HTTPException(
+            status_code=404, detail=f"Parcel with id {parcel_id} not found"
+        )
     conditions = [RasterStats.parcel_id == parcel.uid]
 
     if metric_type:
