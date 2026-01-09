@@ -1,18 +1,19 @@
-import pathlib
-import sys
+import os
 
 import httpx
 import streamlit as st
 
-root_path = pathlib.Path(__file__).parent.parent.parent.resolve()
-sys.path.insert(0, str(root_path))
-from app.core.config import config  # noqa: E402
+# no need for config
+# root_path = pathlib.Path(__file__).parent.parent.parent.resolve()
+# sys.path.insert(0, str(root_path))
+# from app.core.config import config  # noqa: E402
 
-API_BASE_URL = config.API_BASE_URL
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
 
 
 def fetch_parcels():
     try:
+        print("api base url:", API_BASE_URL)
         with httpx.Client(base_url=API_BASE_URL) as client:
             response = client.get("/parcels", params={"limit": 100})
             response.raise_for_status()

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import PostgresDsn
+from pydantic import PostgresDsn, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,7 +10,11 @@ class BaseConfig(BaseSettings):
 
 
 class GlobalConfig(BaseConfig):
-    DATABASE_URL: PostgresDsn
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_HOST: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: int = 5433
     DB_FORCE_ROLL_BACK: bool = False
     SENTINEL_HUB_BASE_URL: str | None = None
     SENTINEL_HUB_CLIENT_ID: str | None = None
@@ -19,6 +23,18 @@ class GlobalConfig(BaseConfig):
     INGESTION_SHEDULER_INTERVAL_DURATION: dict = {"hours": 24}
     TIMESERIES_SHEDULER_INTERVAL_DURATION: dict = {"hours": 24}
     API_BASE_URL: str | None = "http://localhost:8000/api/v1"
+
+    @computed_field
+    @property
+    def DATABASE_URL(self) -> PostgresDsn:
+        return PostgresDsn.build(
+            scheme="postgresql+psycopg2",
+            username=self.POSTGRES_USER,
+            password=self.POSTGRES_PASSWORD,
+            host=self.POSTGRES_HOST,
+            port=self.POSTGRES_PORT,
+            path=self.POSTGRES_DB,
+        )
 
 
 class DevConfig(GlobalConfig):

@@ -8,15 +8,12 @@ from alembic import context
 from app.core.config import config as app_config
 from app.core.database import Base
 
-# this is the Alembic Config object
 config = context.config
 
-# Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 logger = logging.getLogger("alembic.env")
 
-# Validate DATABASE_URI before proceeding
 try:
     db_url = str(app_config.DATABASE_URL)
     if not db_url:
