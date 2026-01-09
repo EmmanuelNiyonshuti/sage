@@ -18,11 +18,10 @@ jobs:
         image: postgis/postgis:16-3.4
         env:
           # creates the database when container starts
-          TEST_POSTGRES_USER: postgres
-          TEST_POSTGRES_PASSWORD: postgres
-          TEST_POSTGRES_DB: sage_test_db
-          TEST_POSTGRES_HOST: localhost
-
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: sage_test_db
+          POSTGRES_HOST: localhost
         ports:
           - 5432:5432
         options: >-
@@ -49,4 +48,9 @@ jobs:
       run: uv run ruff check .
     
     - name: Run tests
+      env:
+        TEST_POSTGRES_USER: postgres
+        TEST_POSTGRES_PASSWORD: postgres
+        TEST_POSTGRES_DB: sage_test_db
+        TEST_POSTGRES_HOST: localhost
       run: uv run pytest tests/ -v
