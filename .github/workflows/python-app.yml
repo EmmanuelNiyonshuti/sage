@@ -53,4 +53,5 @@ jobs:
         TEST_POSTGRES_PASSWORD: postgres
         TEST_POSTGRES_DB: sage_test_db
         TEST_POSTGRES_HOST: localhost
+        TEST_POSTGRES_PORT: 5432
       run: uv run pytest tests/ -v
