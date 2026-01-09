@@ -1,0 +1,33 @@
+services:
+  db:
+    environment:
+      - POSTGRES_USER=${DEV_POSTGRES_USER}
+      - POSTGRES_DB=${DEV_POSTGRES_DB}
+      - POSTGRES_PASSWORD=${DEV_POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DEV_POSTGRES_USER} -d ${DEV_POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  web:
+    environment:
+      - DEV_POSTGRES_HOST=db
+      - DEV_POSTGRES_PORT=5432
+    volumes:
+      # Format: ./host/path:/container/path
+      - ./app:/sage/app
+      - ./alembic:/sage/alembic
+      - ./tests:/sage/tests
+    command: uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
+
+  dashboard:
+    environment:
+    - API_BASE_URL=http://web:8000/api/v1
+    volumes:
+      - ./tools:/sage/tools
+    command: uv run streamlit run tools/visualizer/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    profiles:
+      - dashboard  # Only starts when explicitly run
+
