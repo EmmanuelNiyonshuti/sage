@@ -12,9 +12,11 @@ services:
     restart: unless-stopped
 
   web:
-    environment:
+    environment: # override db host/port for container-to-container networking (dev & test)
       - DEV_POSTGRES_HOST=db
+      - TEST_POSTGRES_HOST=db
       - DEV_POSTGRES_PORT=5432
+      - TEST_POSTGRES_PORT=5432
     volumes:
       # Format: ./host/path:/container/path
       - ./app:/sage/app
