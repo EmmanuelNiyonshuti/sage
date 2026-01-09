@@ -6,6 +6,14 @@ SAGE is a backend application that uses the Sentinel Hub API to periodically fet
 The data is stored in a relational database, aggregated into time series, and used to generate
 basic alerts such as vegetation decline, sustained low NDVI, or drought_risk.
 
+The Sentinel Hub API uses OAuth2 Authentication and requires that you have an access token. to get your credentials you can:
+1.  **Register:** Create an account at [Sentinel Hub / Planet](https://login.planet.com).
+2.  **OAuth Client:** Navigate to the User Settings to create a new OAuth Client.
+3.  **Credentials:** Obtain your `CLIENT_ID` and `CLIENT_SECRET`. 
+4.  **Documentation:** For more details you can visit [Sentinel Hub Auth Guide](https://docs.sentinel-hub.com/api/latest/api/overview/authentication/).
+
+These credentials should be placed in your `.env` file (you can check `.env.template`)
+
 The API is meant to be used by things like:
 - Simple dashboards (maps, charts, alert lists)
 - Internal tools that need parcel-level vegetation trends
