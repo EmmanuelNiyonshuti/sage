@@ -41,3 +41,31 @@ What makes sense is highly context-dependent and varies by crop type, growth sta
 
 These values are used as reasonable starting points in code and are meant to be tunable, not definitive.
 
+## Running it locally
+
+Clone the repository
+```bash
+git clone git@github.com:EmmanuelNiyonshuti/sage.git
+cd sage
+
+-- Configure environment variables
+cp .env.template .env
+
+# Edit .env and add your Sentinel Hub credential:
+SENTINEL_HUB_CLIENT_ID=your_client_id_here
+SENTINEL_HUB_CLIENT_SECRET=your_client_secret_here
+
+Option A(if you use docker):
+docker compose up
+This will start all services including the database, API server, and dashboard
+
+Option B: Using uv
+# Install dependencies
+uv sync
+
+#Run the application
+uv run fastapi dev
+Note: You'll need to set up a PostgreSQL database with postgis extension separately if not using Docker!
+```
+API Documentation: http://localhost:8000/docs
+Dashboard: http://localhost:8501 (python3 -m tools.visualizer.streamlit_app)
