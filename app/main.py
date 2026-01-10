@@ -35,10 +35,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="sage",
-    description="""
-    A backend that utilize sentinel hub api to fetch agronomic data through scheduled jobs for a particular farm boundary(drawn on a map) referred to in the application as parcels,
-    stores the data in relational database, builds time series and alerts over those data and expose them via a REST API for internal tools, dashboards, or other services.
+    title="spatial agronomic geo engine(sage)",
+    summary="""
+    fetch NDVI data from sentinel hub statistical api run scheduled jobs for a particular farm boundary(drawn on a map) referred to in the application as parcels,
+    stores the data in relational database, builds time series and alerts over those data and expose them via a REST API.
     """,
     lifespan=lifespan,
 )

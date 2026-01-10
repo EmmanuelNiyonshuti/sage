@@ -9,7 +9,7 @@ from app.core.database import Base
 
 
 class Alerts(Base):
-    """Detected anomalies and issues requiring attention"""
+    """Represents Detected anomalies and issues"""
 
     __tablename__ = "alerts"
     uid: so.Mapped[str] = so.mapped_column(

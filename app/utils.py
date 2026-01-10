@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def trigger_backfill_for_parcel(parcel_id: str, lookback_days: int = 90):
-    logger.info(f"Starting background backfill for parcel {parcel_id}")
+    logger.info(f"Starting background backfill for parcel with {parcel_id} id")
     try:
         controller = IngestionController(session_factory)
         job = controller.trigger_initial_backfill(
