@@ -41,31 +41,47 @@ What makes sense is highly context-dependent and varies by crop type, growth sta
 
 These values are used as reasonable starting points in code and are meant to be tunable, not definitive.
 
-## Running it locally
+## Running It Locally
 
-Clone the repository
 ```bash
+# Clone the repository
 git clone git@github.com:EmmanuelNiyonshuti/sage.git
 cd sage
 
--- Configure environment variables
+# Configure environment variables
 cp .env.template .env
+```
 
-# Edit .env and add your Sentinel Hub credential:
+Edit `.env` and add your Sentinel Hub credentials:
+```
 SENTINEL_HUB_CLIENT_ID=your_client_id_here
 SENTINEL_HUB_CLIENT_SECRET=your_client_secret_here
+```
 
-Option A(if you use docker):
+### Option A: Using Docker
+
+```bash
 docker compose up
-This will start all services including the database, API server, and dashboard
+```
 
-Option B: Using uv
+it will start all services including the database (PostgreSQL with PostGIS), API server. you will have to start the dashboard if you want because its optional service by running ```docker compose up dashboard```.
+
+### Option B: Using uv
+
+```bash
 # Install dependencies
 uv sync
 
-#Run the application
+# Run the API server
 uv run fastapi dev
-Note: You'll need to set up a PostgreSQL database with postgis extension separately if not using Docker!
+
+# Run the dashboard (in a separate terminal)
+python3 -m tools.visualizer.streamlit_app
 ```
-API Documentation: http://localhost:8000/docs
-Dashboard: http://localhost:8501 (python3 -m tools.visualizer.streamlit_app)
+
+**Note:** You'll need to set up a PostgreSQL database with the PostGIS extension separately if not using Docker.
+
+### Accessing the Application
+
+- **API Documentation:** http://localhost:8000/docs
+- **Dashboard:** http://localhost:8501
