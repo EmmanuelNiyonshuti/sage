@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from starlette.testclient import TestClient
 
 os.environ["ENV_STATE"] = "test"
-from alembic import command
 from alembic.config import Config
+
+from alembic import command
 from app.api.deps import get_db
 from app.core.database import Base, engine
 from app.main import app
