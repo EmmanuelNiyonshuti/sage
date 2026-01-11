@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
     summary="Create a new parcel",
     description="Create a new parcel and trigger automatic data backfill",
 )
-def create_parcel(
+async def create_parcel(
     parcel_data: ParcelCreate,
     db: SessionDep,
     background_tasks: BackgroundTasks,
@@ -73,7 +73,7 @@ def create_parcel(
     summary="List all parcels",
     description="Get a paginated list of parcels",
 )
-def get_parcels(
+async def get_parcels(
     db: SessionDep,
     limit: int = Query(50, ge=1, le=100, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
@@ -116,7 +116,7 @@ def get_parcels(
 
 
 @router.get("/{parcel_id}")
-def get_parcel(parcel_id: str, db: SessionDep):
+async def get_parcel(parcel_id: str, db: SessionDep):
     parcel = find_parcel_by_id(parcel_id, db)
     if not parcel:
         raise HTTPException(

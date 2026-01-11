@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
     response_model=ParcelStatsListResponse,
     summary="Get raw parcel stats",
 )
-def get_parcel_raw_stats(
+async def get_parcel_raw_stats(
     parcel_id: str,
     db: SessionDep,
     metric_type: str | None = Query(

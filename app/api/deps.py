@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import session_factory
 
 
-def get_db() -> Generator[Session, None, None]:
+async def get_db() -> Generator[Session, None, None]:
     with session_factory() as session:
         yield session
 

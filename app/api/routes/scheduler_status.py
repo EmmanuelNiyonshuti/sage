@@ -7,7 +7,7 @@ router = APIRouter(tags=["Scheduler"])
 
 
 @router.get("/scheduler/status")
-def scheduler_jobs_status():
+async def scheduler_jobs_status():
     ingestion_jobs = ingestion_scheduler.get_jobs()
     time_series_jobs = time_series_scheduler.get_jobs()
     ingestion_jobs.extend(time_series_jobs)
