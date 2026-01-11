@@ -14,13 +14,16 @@ from app.scheduler.time_series_scheduler import time_series_scheduler
 
 logger = logging.getLogger(__name__)
 
-if config.SENTRY_DSN and isinstance(config, ProdConfig):
-    sentry_sdk.init(dsn=str(config.SENTRY_DSN), enable_tracing=True)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
+    if config.SENTRY_DSN and isinstance(config, ProdConfig):
+        sentry_sdk.init(
+            dsn=str(config.SENTRY_DSN),
+            enable_tracing=True,
+        )
+
     if config.ENABLE_SCHEDULER:
         try:
             ingestion_scheduler.start()
