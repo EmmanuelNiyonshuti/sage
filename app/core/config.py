@@ -23,6 +23,7 @@ class GlobalConfig(BaseConfig):
     INGESTION_SHEDULER_INTERVAL_DURATION: dict = {"hours": 24}
     TIMESERIES_SHEDULER_INTERVAL_DURATION: dict = {"hours": 24}
     API_BASE_URL: str | None = "http://localhost:8000/api/v1"
+    SENTRY_DSN: str | None = None
 
     @computed_field
     @property

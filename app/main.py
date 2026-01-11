@@ -1,17 +1,21 @@
 import logging
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI
 
 from app.api.main import api_router
-from app.core.config import config
+from app.core.config import ProdConfig, config
 from app.logging_config import configure_logging
 from app.scheduler.alerts_scheduler import generate_alerts_scheduler
 from app.scheduler.ingestion_scheduler import ingestion_scheduler
 from app.scheduler.time_series_scheduler import time_series_scheduler
 
 logger = logging.getLogger(__name__)
+
+if config.SENTRY_DSN and isinstance(config, ProdConfig):
+    sentry_sdk.init(dsn=str(config.SENTRY_DSN), enable_tracing=True)
 
 
 @asynccontextmanager

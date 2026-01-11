@@ -2,8 +2,6 @@ from logging.config import dictConfig
 
 from app.core.config import DevConfig, config
 
-### skipped: logging to Logtail
-
 
 def configure_logging() -> None:
     dictConfig(
@@ -25,7 +23,7 @@ def configure_logging() -> None:
                 },
                 "file": {
                     # "class": "logging.Formatter",
-                    "class": "pythonjsonlogger.jsonlogger.JsonFormatter",  # for storing logs as json , (i.e: mostly for storing somewhere external)
+                    "class": "pythonjsonlogger.jsonlogger.JsonFormatter",
                     "datefmt": "%Y:%m:%dT%H:%M:%S",
                     # "format": "%(asctime)s.%(msecs)0dZ | %(levelname)-8s | [%(correlation_id)s] %(name)s:%(lineno)d - %(message)s",
                     "format": "%(asctime)s.%(msecs)0dZ  %(levelname)-8s [%(correlation_id)s] %(name)s:%(lineno)d - %(message)s",  # with json

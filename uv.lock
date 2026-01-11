@@ -1303,6 +1303,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4b/b6/ce7c502a366f4835b1f9c057753f6989a92d3c70cbadb168193f5fb7499b/sentry_sdk-2.46.0-py2.py3-none-any.whl", hash = "sha256:4eeeb60198074dff8d066ea153fa6f241fef1668c10900ea53a4200abc8da9b1", size = 406266, upload-time = "2025-11-24T09:34:12.114Z" },
 ]
 
+[package.optional-dependencies]
+fastapi = [
+    { name = "fastapi" },
+]
+
 [[package]]
 name = "sg"
 version = "0.1.0"
@@ -1316,8 +1321,8 @@ dependencies = [
     { name = "geoalchemy2", extra = ["shapely"] },
     { name = "psycopg2-binary" },
     { name = "pydantic-settings" },
-    { name = "pytest" },
     { name = "python-json-logger" },
+    { name = "sentry-sdk", extra = ["fastapi"] },
     { name = "shapely" },
     { name = "sqlalchemy" },
     { name = "streamlit" },
@@ -1326,6 +1331,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest" },
     { name = "ruff" },
 ]
 
@@ -1339,8 +1345,8 @@ requires-dist = [
     { name = "geoalchemy2", extras = ["shapely"], specifier = ">=0.18.1" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
-    { name = "pytest", specifier = ">=9.0.2" },
     { name = "python-json-logger", specifier = ">=4.0.0" },
+    { name = "sentry-sdk", extras = ["fastapi"], specifier = ">=2.46.0" },
     { name = "shapely", specifier = ">=2.1.2" },
     { name = "sqlalchemy", specifier = ">=2.0.44" },
     { name = "streamlit", specifier = ">=1.52.1" },
@@ -1348,7 +1354,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.14.10" }]
+dev = [
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "ruff", specifier = ">=0.14.10" },
+]
 
 [[package]]
 name = "shapely"
