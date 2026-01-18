@@ -48,6 +48,7 @@ app = FastAPI(
     stores the data in relational database, builds time series and alerts over those data and expose them via a REST API.
     """,
     lifespan=lifespan,
+    openapi_url="/api/v1/openapi.json",
 )
 
 
