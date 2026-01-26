@@ -1,9 +1,11 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 
 import sentry_sdk
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI
+from fastapi.requests import Request
 
 from app.api.main import api_router
 from app.core.config import ProdConfig, config
@@ -53,6 +55,17 @@ app = FastAPI(
 
 
 app.add_middleware(CorrelationIdMiddleware)
+
+
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+    logger.info(
+        f"{request.method} {request.url.path} {process_time:.2f}ms {response.status_code}"
+    )
+    return response
 
 
 app.include_router(api_router)

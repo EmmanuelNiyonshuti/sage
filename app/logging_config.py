@@ -19,19 +19,19 @@ def configure_logging() -> None:
                 "console": {
                     "class": "logging.Formatter",
                     "datefmt": "%Y:%m:%dT%H:%M:%S",
-                    "format": "(%(correlation_id)s)  %(name)s:%(lineno)d - %(message)s",
+                    "style": "{",
+                    "format": "({correlation_id})  {name}:{lineno:d} - {message}",
                 },
                 "file": {
-                    # "class": "logging.Formatter",
                     "class": "pythonjsonlogger.jsonlogger.JsonFormatter",
                     "datefmt": "%Y:%m:%dT%H:%M:%S",
-                    # "format": "%(asctime)s.%(msecs)0dZ | %(levelname)-8s | [%(correlation_id)s] %(name)s:%(lineno)d - %(message)s",
-                    "format": "%(asctime)s.%(msecs)0dZ  %(levelname)-8s [%(correlation_id)s] %(name)s:%(lineno)d - %(message)s",  # with json
+                    "style": "{",
+                    "format": "{asctime}.{msecs:0d}Z  {levelname:-8s} [{correlation_id}] {name}:{lineno:d} - {message}",
                 },
             },
             "handlers": {
                 "default": {
-                    "class": "rich.logging.RichHandler",  # rich handler for nice logging.
+                    "class": "rich.logging.RichHandler",
                     "level": "DEBUG",
                     "formatter": "console",
                     "filters": ["correlation_id"],
@@ -40,7 +40,7 @@ def configure_logging() -> None:
                     "class": "logging.handlers.RotatingFileHandler",
                     "level": "DEBUG",
                     "formatter": "file",
-                    "filename": "app.log",
+                    "filename": "logs/app.log",
                     "maxBytes": 1024 * 1024,  # 1MB,
                     "backupCount": 2,  # keep only 2 log files
                     "encoding": "utf8",
@@ -48,7 +48,11 @@ def configure_logging() -> None:
                 },
             },
             "loggers": {
-                "uvicorn": {"handlers": ["default", "rotating_file"], "level": "INFO"},
+                "uvicorn": {
+                    "handlers": ["default", "rotating_file"],
+                    "level": "INFO",
+                    "propagate": False,
+                },
                 "app": {
                     "handlers": ["default", "rotating_file"],
                     "level": "DEBUG" if isinstance(config, DevConfig) else "INFO",
