@@ -1,6 +1,6 @@
-# sage
+# Sentinel NDVI Pipeline
 
-SAGE is a backend application that uses the Sentinel Hub API to periodically fetch NDVI
+A backend application that uses the Sentinel Hub API to periodically fetch NDVI
 (Normalized Difference Vegetation Index) data for farm boundaries (called **parcels** in the application).
 
 The data is stored in a relational database, aggregated into time series, and used to generate
@@ -19,7 +19,7 @@ The API is meant to be used by things like:
 - Internal tools that need parcel-level vegetation trends
 - Experiments or analysis built on top of cleaned, structured NDVI data
 
-SAGE exposes everything through a REST API and focuses mainly on backend concerns:
+This application exposes everything through a REST API and focuses mainly on backend concerns:
 data ingestion, scheduling, processing, and alerting.
 
 There is also a small Streamlit-based dashboard for basic interaction and visualization.
