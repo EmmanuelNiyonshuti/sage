@@ -1,5 +1,4 @@
 import logging
-import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -14,26 +13,12 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 logger = logging.getLogger("alembic.env")
 
-try:
-    db_url = str(app_config.DATABASE_URL)
-    if not db_url:
-        raise ValueError("DATABASE_URI is not set in application configuration")
 
-    config.set_main_option("sqlalchemy.url", db_url)
-    logger.info("Database URL configured successfully")
+config.set_main_option(
+    "sqlalchemy.url",
+    f"postgresql://{app_config.POSTGRES_USER}:{app_config.POSTGRES_PASSWORD}@{app_config.POSTGRES_HOST}:{app_config.POSTGRES_PORT}/{app_config.POSTGRES_DB}",
+)  # omit the driver (asyncpg) since alembic doesn't support it, migrations will run sync and it will now use the default driver (psycopg2))
 
-except AttributeError as e:
-    logger.error("DATABASE_URI attribute not found in app configuration")
-    logger.error(f"Error details: {str(e)}", exc_info=True)
-    sys.exit(1)
-except ValueError as e:
-    logger.error(f"Configuration Error: {str(e)}")
-    sys.exit(1)
-except Exception as e:
-    logger.error(
-        f"Unexpected error while configuring database: {str(e)}", exc_info=True
-    )
-    sys.exit(1)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
