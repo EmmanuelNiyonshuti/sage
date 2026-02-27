@@ -17,7 +17,7 @@ class SentinelHubAuth:
         self._token: str | None = None
         self._token_expires_at: datetime | None = None
 
-    def get_token(self) -> str:
+    async def get_token(self) -> str:
         """
         Get a valid access token.
 
@@ -30,10 +30,10 @@ class SentinelHubAuth:
             if datetime.now(UTC) < self._token_expires_at:
                 return self._token
 
-        self._token = self._fetch_new_token()
+        self._token = await self._fetch_new_token()
         return self._token
 
-    def _fetch_new_token(self) -> str:
+    async def _fetch_new_token(self) -> str:
         """
         Authenticate and Fetch a new access token from sentinel hub api
 
@@ -46,12 +46,12 @@ class SentinelHubAuth:
         token_data = {
             "grant_type": "client_credentials",
         }
-        with httpx.Client(
+        async with httpx.AsyncClient(
             base_url=self.base_url,
             auth=auth_creds,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         ) as client:
-            response = client.post(
+            response = await client.post(
                 "/auth/realms/main/protocol/openid-connect/token", data=token_data
             )
             response.raise_for_status()

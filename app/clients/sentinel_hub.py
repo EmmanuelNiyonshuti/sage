@@ -22,7 +22,7 @@ class SentinelHubClient:
         """
         self.base_url = base_url
 
-    def get_statistics(
+    async def get_statistics(
         self,
         geometry: dict[str, Any],
         start_date: date,
@@ -53,10 +53,10 @@ class SentinelHubClient:
             evalscript=evalscript,
             max_cloud_coverage=max_cloud_coverage,
         )
-        token = sentinel_auth.get_token()
+        token = await sentinel_auth.get_token()
 
-        with httpx.Client(base_url=self.base_url, timeout=60.0) as client:
-            response = client.post(
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=60.0) as client:
+            response = await client.post(
                 "/api/v1/statistics",
                 json=payload,
                 headers={
