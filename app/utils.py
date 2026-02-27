@@ -4,17 +4,17 @@ from geoalchemy2.shape import from_shape, to_shape
 from geoalchemy2.types import WKBElement
 from shapely.geometry import Polygon, shape
 
-from app.core.database import session_factory
+from app.core.database import async_session_factory
 from app.pipeline.ingestion_controller import IngestionController
 
 logger = logging.getLogger(__name__)
 
 
-def trigger_backfill_for_parcel(parcel_id: str, lookback_days: int = 90):
+async def trigger_backfill_for_parcel(parcel_id: str, lookback_days: int = 90):
     logger.info(f"Starting background backfill for parcel with {parcel_id} id")
     try:
-        controller = IngestionController(session_factory)
-        job = controller.trigger_initial_backfill(
+        controller = IngestionController(async_session_factory)
+        job = await controller.trigger_initial_backfill(
             parcel_id, lookback_days=lookback_days
         )
         logger.info(

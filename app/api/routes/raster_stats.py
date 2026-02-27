@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 )
 async def get_parcel_raw_stats(
     parcel_id: str,
-    db: SessionDep,
+    db_session: SessionDep,
     metric_type: str | None = Query(
         None, description="Filter by metric type (NDVI currently)"
     ),
@@ -34,7 +34,7 @@ async def get_parcel_raw_stats(
 ):
     logger.info(f"Getting stats for parcel {parcel_id}")
 
-    parcel = find_parcel_by_id(parcel_id.strip(), db)
+    parcel = await find_parcel_by_id(parcel_id.strip(), db_session)
     if not parcel:
         raise HTTPException(
             status_code=404, detail=f"Parcel with id {parcel_id} not found"
@@ -49,7 +49,7 @@ async def get_parcel_raw_stats(
         conditions.append(RasterStats.acquisition_date <= end_date)
 
     count_stmt = select(RasterStats).where(and_(*conditions))
-    total = len(db.execute(count_stmt).scalars().all())
+    total = len((await db_session.execute(count_stmt)).scalars().all())
 
     stmt = (
         select(RasterStats)
@@ -59,7 +59,7 @@ async def get_parcel_raw_stats(
         .offset(offset)
     )
 
-    stats = db.execute(stmt).scalars().all()
+    stats = (await db_session.execute(stmt)).scalars().all()
 
     return ParcelStatsListResponse(
         parcel_id=parcel_id,

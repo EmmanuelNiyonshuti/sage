@@ -5,13 +5,14 @@ from app.api.deps import SessionDep
 from app.models import Parcel
 
 
-def find_parcel_by_id(parcel_id: str, db: SessionDep) -> Parcel:
+async def find_parcel_by_id(parcel_id: str, db: SessionDep) -> Parcel:
     stmt = select(Parcel).where(Parcel.uid == parcel_id)
-    parcel = db.execute(stmt).scalars().first()
+    result = await db.execute(stmt)
+    parcel = result.scalars().first()
     return parcel
 
 
-def list_parcels(
+async def list_parcels(
     db: Session,
     *,
     limit: int = 50,
@@ -36,9 +37,10 @@ def list_parcels(
     if filters:
         query = query.where(*filters)
         count_query = count_query.where(*filters)
-    total = db.execute(count_query).scalar() or 0
+    result = await db.execute(count_query)
+    total = result.scalar() or 0
     query = query.order_by(Parcel.created_at.desc()).limit(limit).offset(offset)
 
-    parcels = list(db.execute(query).scalars().all())
+    parcels = list((await db.execute(query)).scalars().all())
 
     return parcels, total

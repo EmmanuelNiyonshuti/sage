@@ -36,7 +36,7 @@ async def get_parcel_time_series_stats(
 ):
     logger.info(f"Getting time series stats for parcel {parcel_id}")
 
-    parcel = find_parcel_by_id(parcel_id, db)
+    parcel = await find_parcel_by_id(parcel_id, db)
     if not parcel:
         raise HTTPException(
             status_code=404, detail=f"parcel with id {parcel_id} is not found"
@@ -53,7 +53,7 @@ async def get_parcel_time_series_stats(
         conditions.append(TimeSeries.end_date <= end_date)
 
     count_stmt = select(TimeSeries).where(and_(*conditions))
-    total = len(db.execute(count_stmt).scalars().all())
+    total = len((await db.execute(count_stmt)).scalars().all())
 
     stmt = (
         select(TimeSeries)
@@ -63,7 +63,7 @@ async def get_parcel_time_series_stats(
         .offset(offset)
     )
 
-    stats = db.execute(stmt).scalars().all()
+    stats = (await db.execute(stmt)).scalars().all()
 
     return TimeSeriesResponse(
         parcel_id=parcel_id,

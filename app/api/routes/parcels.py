@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 )
 async def create_parcel(
     parcel_data: ParcelCreate,
-    db: SessionDep,
+    db_session: SessionDep,
     background_tasks: BackgroundTasks,
     trigger_backfill: bool = Query(
         True, description="Automatically trigger historical data backfill"
@@ -45,9 +45,9 @@ async def create_parcel(
             detail="Failed validating request data for adding parcel, please try again",
         )
     try:
-        db.add(parcel)
-        db.commit()
-        db.refresh(parcel)
+        db_session.add(parcel)
+        await db_session.commit()
+        await db_session.refresh(parcel)
         logger.info(f"Created parcel: {parcel.uid} - {parcel.name}")
         if trigger_backfill:
             background_tasks.add_task(
@@ -58,7 +58,7 @@ async def create_parcel(
             logger.info(f"Queued backfill job for parcel {parcel.name}")
         return ParcelResponse.model_validate(parcel)
     except Exception as e:
-        db.rollback()
+        db_session.rollback()
         logger.exception(f"Failed to create parcel, {str(e)}")
         raise HTTPException(
             status_code=500,
@@ -74,7 +74,7 @@ async def create_parcel(
     description="Get a paginated list of parcels",
 )
 async def get_parcels(
-    db: SessionDep,
+    db_session: SessionDep,
     limit: int = Query(50, ge=1, le=100, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     is_active: bool | None = Query(None, description="Filter by active status"),
@@ -84,8 +84,8 @@ async def get_parcels(
     ),
 ):
     try:
-        parcels, total = list_parcels(
-            db,
+        parcels, total = await list_parcels(
+            db_session,
             limit=limit,
             offset=offset,
             is_active=is_active,
@@ -116,8 +116,8 @@ async def get_parcels(
 
 
 @router.get("/{parcel_id}")
-async def get_parcel(parcel_id: str, db: SessionDep):
-    parcel = find_parcel_by_id(parcel_id, db)
+async def get_parcel(parcel_id: str, db_session: SessionDep):
+    parcel = await find_parcel_by_id(parcel_id, db_session)
     if not parcel:
         raise HTTPException(
             status_code=404, detail=f"parcel with id {parcel_id} is not found"
