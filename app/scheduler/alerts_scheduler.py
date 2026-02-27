@@ -6,10 +6,10 @@ Runs background jobs to process parcels that need data updates.
 
 import logging
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.core.database import session_factory
+from app.core.database import async_session_factory
 from app.pipeline.generate_alerts import GenerateAlerts
 
 logger = logging.getLogger(__name__)
@@ -25,17 +25,20 @@ class GenerateAlertsScheduler:
     """
 
     def __init__(self, interval_duration: dict = {"weeks": 4}):
-        self.scheduler: BackgroundScheduler | None = None
+        self.scheduler: AsyncIOScheduler | None = None
         self._is_running = False
         self.interval_duration = interval_duration
 
-    def start(self, interval: dict | None = None):
+    async def start(self, interval: dict | None = None):
         if self._is_running:
             logger.warning("Scheduler already running, ignoring start request")
             return
 
         logger.info("Starting Alerts scheduler")
-        self.scheduler = BackgroundScheduler(
+        # AsyncIOScheduler integrates with the existing asyncio loop so
+        # our async job function will be awaited rather than returning
+        # a coroutine object that never executes.
+        self.scheduler = AsyncIOScheduler(
             job_defaults={
                 "coalesce": True,
                 "max_instances": 1,
@@ -73,7 +76,7 @@ class GenerateAlertsScheduler:
 
         logger.info("Scheduler stopped")
 
-    def _process_parcels_job(self):
+    async def _process_parcels_job(self):
         """
         Job function that processes due parcels.
 
@@ -83,8 +86,8 @@ class GenerateAlertsScheduler:
         logger.info("Scheduler triggered: checking for due parcels")
 
         try:
-            generate_alerts = GenerateAlerts(session_factory)
-            results = generate_alerts.process_all_parcels()
+            generate_alerts = GenerateAlerts(async_session_factory)
+            results = await generate_alerts.process_all_parcels()
 
             logger.info(
                 f"Scheduled job completed: "

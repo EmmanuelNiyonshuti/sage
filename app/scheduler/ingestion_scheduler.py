@@ -6,10 +6,10 @@ Runs background jobs to process parcels that need data updates.
 
 import logging
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from app.core.database import session_factory
+from app.core.database import async_session_factory
 from app.pipeline.ingestion_controller import IngestionController
 
 logger = logging.getLogger(__name__)
@@ -24,17 +24,17 @@ class IngestionScheduler:
     """
 
     def __init__(self, interval_duration: dict = {"hours": 24}):
-        self.scheduler: BackgroundScheduler | None = None
+        self.scheduler: AsyncIOScheduler | None = None
         self._is_running = False
         self.interval_duration = interval_duration
 
-    def start(self, interval: dict | None = None):
+    async def start(self, interval: dict | None = None):
         if self._is_running:
             logger.warning("Scheduler already running, ignoring start request")
             return
 
         logger.info("Starting ingestion scheduler")
-        self.scheduler = BackgroundScheduler(
+        self.scheduler = AsyncIOScheduler(
             job_defaults={
                 "coalesce": True,  # If missed, run once (not multiple times)
                 "max_instances": 1,
@@ -72,7 +72,7 @@ class IngestionScheduler:
 
         logger.info("Scheduler stopped")
 
-    def _process_due_parcels_job(self):
+    async def _process_due_parcels_job(self):
         """
         Job function that processes due parcels.
 
@@ -82,8 +82,8 @@ class IngestionScheduler:
         logger.info("Scheduler triggered: checking for due parcels")
 
         try:
-            ingestion_controller = IngestionController(session_factory)
-            results = ingestion_controller.process_due_parcels()
+            ingestion_controller = IngestionController(async_session_factory)
+            results = await ingestion_controller.process_due_parcels()
 
             logger.info(
                 f"Scheduled job completed: "
