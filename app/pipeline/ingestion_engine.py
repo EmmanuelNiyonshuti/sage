@@ -22,17 +22,17 @@ class IngestionEngine:
     Service for ingesting satellite NDVI data into the database.
     """
 
-    def __init__(self, session_factory):
-        self.session_factory = session_factory
+    def __init__(self, async_session_factory):
+        self.async_session_factory = async_session_factory
 
-    def ingest_with_job_tracking(self, db_s: Session, job: IngestionJob):
+    async def ingest_with_job_tracking(self, db_s: Session, job: IngestionJob):
         logger.info(f"starting ingestion for parcel with id {job.parcel_id}")
         job.status = "running"
         job.started_at = datetime.now(UTC)
-        db_s.commit()
+        await db_s.commit()
         try:
-            parcel_boundary_geojson_obj = self.get_parcel_geometry(job.parcel_id)
-            response = sentinel_client.get_statistics(
+            parcel_boundary_geojson_obj = await self.get_parcel_geometry(job.parcel_id)
+            response = await sentinel_client.get_statistics(
                 parcel_boundary_geojson_obj,
                 job.requested_start_date,
                 job.requested_end_date,
@@ -45,7 +45,7 @@ class IngestionEngine:
                         interval_data["interval"]["from"]
                     )
                     stats = self.extract_stats(interval_data)
-                    already_exists = self.record_exists(
+                    already_exists = await self.record_exists(
                         db_s, job.parcel_id, acq_date, job.metric_type
                     )
                     if already_exists:
@@ -55,7 +55,7 @@ class IngestionEngine:
                         )
                         skipped += 1
                         continue
-                    self._create_raster_stat(
+                    await self._create_raster_stat(
                         db_s,
                         job.parcel_id,
                         acq_date,
@@ -76,20 +76,20 @@ class IngestionEngine:
                 job.status = "completed"
                 job.actual_start_date = min(acquisition_dates)
                 job.actual_end_date = max(acquisition_dates)
-                db_s.commit()
+                await db_s.commit()
             elif skipped > 0:
                 job.status = "completed"  # All already existed
-                db_s.commit()
+                await db_s.commit()
             else:
                 job.status = "partial"  # Requested data not available
-                db_s.commit()
+                await db_s.commit()
             job.records_created = created
             job.records_skipped = skipped
             job.completed_at = datetime.now(UTC)
-            db_s.commit()
+            await db_s.commit()
 
             if created > 0:
-                self._update_parcel_metadata(
+                await self._update_parcel_metadata(
                     db_s, job.parcel_id, max(acquisition_dates)
                 )
 
@@ -104,14 +104,14 @@ class IngestionEngine:
             job.error_message = str(e)
             job.completed_at = datetime.now(UTC)
             job.retry_count += 1
-            db_s.commit()
+            await db_s.commit()
 
             logger.exception(f"Job {job.uid} failed: {e}")
             raise
 
-    def get_parcel_geometry(self, parcel_id: str) -> dict[str, Any]:
-        with self.session_factory() as db_s:
-            parcel = db_s.get(Parcel, parcel_id)
+    async def get_parcel_geometry(self, parcel_id: str) -> dict[str, Any]:
+        async with self.async_session_factory() as db_s:
+            parcel = await db_s.get(Parcel, parcel_id)
         if parcel is None:
             raise ValueError(f"parcel with id {parcel_id} is not found")
         if not parcel.is_active:
@@ -137,7 +137,7 @@ class IngestionEngine:
 
         return stats
 
-    def record_exists(
+    async def record_exists(
         self, db_s: Session, parcel_id: str, acquisition_date: date, metric_type: str
     ) -> bool:
         exist_stmt = select(RasterStats).where(
@@ -145,9 +145,9 @@ class IngestionEngine:
             RasterStats.parcel_id == parcel_id,
             RasterStats.metric_type == metric_type,
         )
-        return db_s.scalar(exist_stmt) is not None
+        return await db_s.scalar(exist_stmt) is not None
 
-    def _create_raster_stat(
+    async def _create_raster_stat(
         self,
         db_s: Session,
         parcel_id: str,
@@ -158,7 +158,7 @@ class IngestionEngine:
         raw_metadata: dict[str, Any],
     ) -> RasterStats:
         """
-        Create a new raster_stats database record.
+        Create a new raster_stats(satellite data for a parcel) database record.
 
         Args:
             parcel_id: Parcel UUID
@@ -186,10 +186,12 @@ class IngestionEngine:
         )
 
         db_s.add(raster_stat)
-        db_s.commit()
+        await db_s.commit()
         return raster_stat
 
-    def _update_parcel_metadata(self, db_s: Session, parcel_id: str, latest_date: date):
+    async def _update_parcel_metadata(
+        self, db_s: Session, parcel_id: str, latest_date: date
+    ):
         """
         Update parcel's ingestion metadata after successful ingestion.
 
@@ -201,7 +203,7 @@ class IngestionEngine:
             parcel_id: Parcel UUID
             latest_date: Most recent acquisition date from this job
         """
-        parcel = db_s.get(Parcel, parcel_id)
+        parcel = await db_s.get(Parcel, parcel_id)
 
         if not parcel:
             logger.warning(f"Parcel {parcel_id} not found during metadata update")

@@ -28,11 +28,11 @@ class IngestionController:
     - Execute jobs through Ingestion
     """
 
-    def __init__(self, session_factory):
-        self.session_factory = session_factory
-        self.ingestion_engine = IngestionEngine(self.session_factory)
+    def __init__(self, async_session_factory):
+        self.async_session_factory = async_session_factory
+        self.ingestion_engine = IngestionEngine(self.async_session_factory)
 
-    def trigger_initial_backfill(
+    async def trigger_initial_backfill(
         self, parcel_id: str, lookback_days: int = 90
     ) -> IngestionJob:
         """
@@ -50,11 +50,11 @@ class IngestionController:
         Raises:
             ValueError: If parcel not found
         """
-        with self.session_factory() as db_s:
-            parcel = db_s.get(Parcel, parcel_id)
+        async with self.async_session_factory() as db_s:
+            parcel = await db_s.get(Parcel, parcel_id)
             if parcel is None:
                 raise ValueError(f"parcel with {parcel_id} not found")
-            data_source = self._get_active_data_source(db_s)
+            data_source = await self._get_active_data_source(db_s)
             safe_end_dt = self._calculate_safe_end_date(data_source)
             start_dt = safe_end_dt - timedelta(days=lookback_days)
 
@@ -66,12 +66,12 @@ class IngestionController:
                 data_source_id=data_source.uid,
             )
             db_s.add(job)
-            db_s.commit()
+            await db_s.commit()
             logger.info(f"Created backfill job {job.uid}")
 
             # Execute job
             try:
-                completed_job = self.ingestion_engine.ingest_with_job_tracking(
+                completed_job = await self.ingestion_engine.ingest_with_job_tracking(
                     db_s, job
                 )
                 logger.info(
@@ -83,7 +83,7 @@ class IngestionController:
                 logger.exception(f"Backfill failed for parcel {parcel_id}")
                 raise
 
-    def process_due_parcels(self) -> dict:
+    async def process_due_parcels(self) -> dict:
         """
         Process all parcels that are due for ingestion.
 
@@ -94,8 +94,8 @@ class IngestionController:
         """
         logger.info("Starting scheduled ingestion check")
 
-        with self.session_factory() as db_s:
-            due_parcels = self._get_due_parcels(db_s)
+        async with self.async_session_factory() as db_s:
+            due_parcels = await self._get_due_parcels(db_s)
 
             due_parcels_len = len(due_parcels)
             logger.info(f"Found {due_parcels_len} parcels due for ingestion")
@@ -109,7 +109,7 @@ class IngestionController:
 
             for parcel in due_parcels:
                 try:
-                    self._process_single_parcel(db_s, parcel)
+                    await self._process_single_parcel(db_s, parcel)
                     results["succeeded"] += 1
 
                 except UpToDateError:
@@ -128,7 +128,7 @@ class IngestionController:
 
             return results
 
-    def _get_due_parcels(self, db_s: Session) -> List[Parcel]:
+    async def _get_due_parcels(self, db_s: Session) -> List[Parcel]:
         """
         Get list of parcels that need ingestion.
 
@@ -149,9 +149,9 @@ class IngestionController:
             )
         )
 
-        return list(db_s.execute(stmt).scalars().all())
+        return list(await db_s.execute(stmt).scalars().all())
 
-    def _process_single_parcel(self, db_s: Session, parcel: Parcel):
+    async def _process_single_parcel(self, db_s: Session, parcel: Parcel):
         """
         Process ingestion for a single parcel.
 
@@ -165,7 +165,7 @@ class IngestionController:
         """
 
         try:
-            data_source = self._get_active_data_source(db_s)
+            data_source = await self._get_active_data_source(db_s)
             start_dt, end_dt = self._determine_fetch_window(parcel, data_source)
             logger.info(
                 f"Processing parcel {parcel.uid} ({parcel.name}) from data_source {data_source.name}"
@@ -183,9 +183,11 @@ class IngestionController:
             data_source_id=data_source.uid,
         )
         db_s.add(job)
-        db_s.commit()
+        await db_s.commit()
         try:
-            completed_job = self.ingestion_engine.ingest_with_job_tracking(db_s, job)
+            completed_job = await self.ingestion_engine.ingest_with_job_tracking(
+                db_s, job
+            )
             self._schedule_next_sync(db_s, parcel, data_source)
 
             logger.info(
@@ -196,7 +198,7 @@ class IngestionController:
             logger.exception(f"Failed to process parcel {parcel.uid}")
             raise
 
-    def _get_active_data_source(
+    async def _get_active_data_source(
         self, db_s, data_source_name: str = "sentinel-2-l2a"
     ) -> DataSource:
         """
@@ -211,7 +213,7 @@ class IngestionController:
         stmt = select(DataSource).where(
             DataSource.name == data_source_name, DataSource.is_active.is_(True)
         )
-        data_source = db_s.scalar(stmt)
+        data_source = await db_s.scalar(stmt)
         if not data_source:
             raise ValueError("No active data source found. Run seeds first.")
         return data_source

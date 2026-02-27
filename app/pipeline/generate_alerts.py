@@ -19,10 +19,12 @@ class GenerateAlerts:
     - No data: Missing recent satellite data
     """
 
-    def __init__(self, session_factory):
-        self.session_factory = session_factory
+    def __init__(self, async_session_factory):
+        self.async_session_factory = async_session_factory
 
-    def generate_alerts_for_parcel(self, db_session: Session, parcel_id: str) -> int:
+    async def generate_alerts_for_parcel(
+        self, db_session: Session, parcel_id: str
+    ) -> int:
         """
         Generate all applicable alerts for a parcel.
 
@@ -38,20 +40,20 @@ class GenerateAlerts:
 
         created_count = 0
 
-        if self._check_vegetation_decline(db_session, parcel_id):
+        if await self._check_vegetation_decline(db_session, parcel_id):
             created_count += 1
 
-        if self._check_drought_stress(db_session, parcel_id):
+        if await self._check_drought_stress(db_session, parcel_id):
             created_count += 1
-        if self._check_anomalies(db_session, parcel_id):
+        if await self._check_anomalies(db_session, parcel_id):
             created_count += 1
-        if self._check_stale_data(db_session, parcel_id):
+        if await self._check_stale_data(db_session, parcel_id):
             created_count += 1
 
         logger.info(f"Created {created_count} alerts for parcel {parcel_id}")
         return created_count
 
-    def process_all_parcels(self) -> dict:
+    async def process_all_parcels(self) -> dict:
         """
         Generate alerts for all active parcels.
 
@@ -61,9 +63,9 @@ class GenerateAlerts:
             Summary
         """
         logger.info("Generating alerts for all parcels")
-        with self.session_factory() as db_s:
+        async with self.async_session_factory() as db_s:
             stmt = select(Parcel).where(Parcel.is_active.is_(True))
-            parcels = db_s.execute(stmt).scalars().all()
+            parcels = await db_s.execute(stmt).scalars().all()
 
             results = {
                 "total_parcels": len(parcels),
@@ -72,7 +74,7 @@ class GenerateAlerts:
 
             for parcel in parcels:
                 try:
-                    count = self.generate_alerts_for_parcel(db_s, parcel.uid)
+                    count = await self.generate_alerts_for_parcel(db_s, parcel.uid)
                     results["alerts_created"] += count
                 except Exception:
                     logger.exception(
@@ -85,7 +87,9 @@ class GenerateAlerts:
 
             return results
 
-    def _check_vegetation_decline(self, db_session: Session, parcel_id: str) -> bool:
+    async def _check_vegetation_decline(
+        self, db_session: Session, parcel_id: str
+    ) -> bool:
         """
         Alert if NDVI dropped >15% in last 2 weeks compared to previous 2 weeks.
         """
@@ -101,7 +105,7 @@ class GenerateAlerts:
             .limit(4)
         )
 
-        recent_weeks = list(db_session.execute(stmt).scalars().all())
+        recent_weeks = list(await db_session.execute(stmt).scalars().all())
         if len(recent_weeks) < 2:
             return False
 
@@ -114,10 +118,10 @@ class GenerateAlerts:
         percent_change = ((current_avg - previous_avg) / previous_avg) * 100
 
         if percent_change < -15:
-            if not self._active_alert_exists(
+            if not await self._active_alert_exists(
                 db_session, parcel_id, "vegetation_decline"
             ):
-                self._create_alert(
+                await self._create_alert(
                     db_session,
                     parcel_id=parcel_id,
                     alert_type="vegetation_decline",
@@ -136,7 +140,7 @@ class GenerateAlerts:
 
         return False
 
-    def _check_drought_stress(self, db_session: Session, parcel_id: str) -> bool:
+    async def _check_drought_stress(self, db_session: Session, parcel_id: str) -> bool:
         """
         Check for low NDVI (drought stress).
 
@@ -153,7 +157,7 @@ class GenerateAlerts:
             .limit(3)
         )
 
-        recent_weeks = list(db_session.execute(stmt).scalars().all())
+        recent_weeks = list(await db_session.execute(stmt).scalars().all())
 
         if len(recent_weeks) < 3:
             return False
@@ -163,8 +167,10 @@ class GenerateAlerts:
         if all_low:
             avg_ndvi = sum(w.value for w in recent_weeks) / len(recent_weeks)
 
-            if not self._active_alert_exists(db_session, parcel_id, "drought_stress"):
-                self._create_alert(
+            if not await self._active_alert_exists(
+                db_session, parcel_id, "drought_stress"
+            ):
+                await self._create_alert(
                     db_session,
                     parcel_id=parcel_id,
                     alert_type="drought_stress",
@@ -184,7 +190,7 @@ class GenerateAlerts:
 
         return False
 
-    def _check_anomalies(self, db_session: Session, parcel_id: str) -> bool:
+    async def _check_anomalies(self, db_session: Session, parcel_id: str) -> bool:
         """
         Check for detected anomalies in time series.
 
@@ -196,13 +202,13 @@ class GenerateAlerts:
             TimeSeries.start_date >= date.today() - timedelta(days=14),
         )
 
-        anomalies = list(db_session.execute(stmt).scalars().all())
+        anomalies = list(await db_session.execute(stmt).scalars().all())
 
         if anomalies:
             latest_anomaly = max(anomalies, key=lambda a: a.start_date)
 
-            if not self._active_alert_exists(db_session, parcel_id, "anomaly"):
-                self._create_alert(
+            if not await self._active_alert_exists(db_session, parcel_id, "anomaly"):
+                await self._create_alert(
                     db_session,
                     parcel_id=parcel_id,
                     alert_type="anomaly",
@@ -222,11 +228,11 @@ class GenerateAlerts:
 
         return False
 
-    def _check_stale_data(self, db_session: Session, parcel_id: str) -> bool:
+    async def _check_stale_data(self, db_session: Session, parcel_id: str) -> bool:
         """
         Check if parcel has missing recent data.
 
-        Alerts if no data in last 14 days.
+        Alerts if no data in last 14 days(stale_data).
         """
         stmt = (
             select(RasterStats)
@@ -235,11 +241,11 @@ class GenerateAlerts:
             .limit(1)
         )
 
-        latest = db_session.execute(stmt).scalar_one_or_none()
+        latest = await db_session.execute(stmt).scalar_one_or_none()
 
-        if not latest:
-            if not self._active_alert_exists(db_session, parcel_id, "no_data"):
-                self._create_alert(
+        if not latest:  # check if we havent' received any data for this parcel at all
+            if not await self._active_alert_exists(db_session, parcel_id, "no_data"):
+                await self._create_alert(
                     db_session,
                     parcel_id=parcel_id,
                     alert_type="no_data",
@@ -250,8 +256,11 @@ class GenerateAlerts:
                 return True
 
         elif (date.today() - latest.acquisition_date).days > 14:
-            if not self._active_alert_exists(db_session, parcel_id, "stale_data"):
-                self._create_alert(
+            active_alerts = await self._active_alert_exists(
+                db_session, parcel_id, "stale_data"
+            )
+            if not active_alerts:
+                await self._create_alert(
                     db_session,
                     parcel_id=parcel_id,
                     alert_type="stale_data",
@@ -269,11 +278,10 @@ class GenerateAlerts:
 
         return False
 
-    # helpers
-    def _active_alert_exists(
+    async def _active_alert_exists(
         self, db_session: Session, parcel_id: str, alert_type: str
     ) -> bool:
-        """Check if active alert of this type already exists."""
+        """Check if active alert already exists."""
 
         stmt = select(Alerts).where(
             Alerts.parcel_id == parcel_id,
@@ -281,9 +289,9 @@ class GenerateAlerts:
             Alerts.status == "active",
         )
 
-        return db_session.execute(stmt).scalar_one_or_none() is not None
+        return await db_session.execute(stmt).scalar_one_or_none() is not None
 
-    def _create_alert(
+    async def _create_alert(
         self,
         db_session: Session,
         parcel_id: str,
@@ -304,6 +312,6 @@ class GenerateAlerts:
         )
 
         db_session.add(alert)
-        db_session.commit()
+        await db_session.commit()
 
         logger.info(f"Created {severity} alert for parcel {parcel_id}: {alert_type}")

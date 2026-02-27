@@ -19,10 +19,10 @@ class GenerateTimeSeries:
     - Detect statistical anomalies
     """
 
-    def __init__(self, session_factory):
-        self.session_factory = session_factory
+    def __init__(self, async_session_factory):
+        self.async_session_factory = async_session_factory
 
-    def generate_weekly_time_series(
+    async def generate_weekly_time_series(
         self,
         db_session: Session,
         parcel_id: str,
@@ -48,7 +48,7 @@ class GenerateTimeSeries:
         logger.info(
             f"Generating weekly time series for parcel {parcel_id}, metric {metric_type}"
         )
-        raw_stats = self._get_raw_stats(
+        raw_stats = await self._get_raw_stats(
             db_session, parcel_id, metric_type, start_date, end_date
         )
 
@@ -73,14 +73,14 @@ class GenerateTimeSeries:
                     (mean_value - previous_value) / previous_value
                 ) * 100
 
-            is_anomaly = self._is_anomaly(
+            is_anomaly = await self._is_anomaly(
                 db_session,
                 parcel_id,
                 metric_type,
                 mean_value,
                 week_start,
             )
-            exists = self._time_series_exists(
+            exists = await self._time_series_exists(
                 db_session,
                 parcel_id,
                 metric_type,
@@ -106,12 +106,12 @@ class GenerateTimeSeries:
 
             previous_value = mean_value
 
-        db_session.commit()
+        await db_session.commit()
 
         logger.info(f"Created {created_count} weekly time series records")
         return created_count
 
-    def generate_monthly_time_series(
+    async def generate_monthly_time_series(
         self,
         db_session: Session,
         parcel_id: str,
@@ -122,7 +122,7 @@ class GenerateTimeSeries:
         """
         logger.info(f"Generating monthly time series for parcel {parcel_id}")
 
-        raw_stats = self._get_raw_stats(db_session, parcel_id, metric_type)
+        raw_stats = await self._get_raw_stats(db_session, parcel_id, metric_type)
 
         if not raw_stats:
             return 0
@@ -145,7 +145,7 @@ class GenerateTimeSeries:
                     (mean_value - previous_value) / previous_value
                 ) * 100
 
-            is_anomaly = self._is_anomaly(
+            is_anomaly = await self._is_anomaly(
                 db_session,
                 parcel_id,
                 metric_type,
@@ -153,7 +153,7 @@ class GenerateTimeSeries:
                 month_start,
             )
 
-            if not self._time_series_exists(
+            if not await self._time_series_exists(
                 db_session, parcel_id, metric_type, "monthly", month_start
             ):
                 ts = TimeSeries(
@@ -172,12 +172,12 @@ class GenerateTimeSeries:
 
             previous_value = mean_value
 
-        db_session.commit()
+        await db_session.commit()
 
         logger.info(f"Created {created_count} monthly time series records")
         return created_count
 
-    def process_all_parcels(self) -> dict:
+    async def process_all_parcels(self) -> dict:
         """
         Process time series for all active parcels.
 
@@ -187,9 +187,9 @@ class GenerateTimeSeries:
             Summary of processing
         """
         logger.info("Processing time series for all parcels")
-        with self.session_factory() as db_s:
+        async with self.async_session_factory() as db_s:
             stmt = select(Parcel).where(Parcel.is_active.is_(True))
-            parcels = db_s.execute(stmt).scalars().all()
+            parcels = await db_s.execute(stmt).scalars().all()
             results = {
                 "total_parcels": len(parcels),
                 "succeeded": 0,
@@ -200,9 +200,9 @@ class GenerateTimeSeries:
 
             for parcel in parcels:
                 try:
-                    weekly = self.generate_weekly_time_series(db_s, parcel.uid)
+                    weekly = await self.generate_weekly_time_series(db_s, parcel.uid)
                     results["weekly_created"] += weekly
-                    monthly = self.generate_monthly_time_series(db_s, parcel.uid)
+                    monthly = await self.generate_monthly_time_series(db_s, parcel.uid)
                     results["monthly_created"] += monthly
                     results["succeeded"] += 1
 
@@ -221,7 +221,7 @@ class GenerateTimeSeries:
             return results
 
     # helpers
-    def _get_raw_stats(
+    async def _get_raw_stats(
         self,
         db_session: Session,
         parcel_id: str,
@@ -245,7 +245,7 @@ class GenerateTimeSeries:
             .order_by(RasterStats.acquisition_date)
         )
 
-        return list(db_session.execute(stmt).scalars().all())
+        return list(await db_session.execute(stmt).scalars().all())
 
     def _group_by_week(self, stats: List[RasterStats]) -> dict[date, List[RasterStats]]:
         """
@@ -289,7 +289,7 @@ class GenerateTimeSeries:
 
         return months
 
-    def _is_anomaly(
+    async def _is_anomaly(
         self,
         db_session: Session,
         parcel_id: str,
@@ -298,10 +298,10 @@ class GenerateTimeSeries:
         current_date: date,
     ) -> bool:
         """
-        Detect if current value is anomalous.
+        Detect if current value is anomalous/unusual.
 
         - Gets historical average and std dev , past 30 days
-        - If current value is >2 standard deviations away, it's an anomaly
+        - If current value is >2 standard deviations away, we flag it as unusual/anomalous
 
         Args:
             parcel_id: Parcel ID
@@ -322,7 +322,7 @@ class GenerateTimeSeries:
             RasterStats.acquisition_date < current_date - timedelta(days=30),
         )
 
-        result = db_session.execute(stmt).first()
+        result = await db_session.execute(stmt).first()
 
         if not result or result.avg is None or result.stddev is None:
             return False
@@ -345,7 +345,7 @@ class GenerateTimeSeries:
 
         return is_anomaly
 
-    def _time_series_exists(
+    async def _time_series_exists(
         self,
         db_session: Session,
         parcel_id: str,
@@ -362,4 +362,4 @@ class GenerateTimeSeries:
             TimeSeries.start_date == start_date,
         )
 
-        return db_session.execute(stmt).scalar_one_or_none() is not None
+        return await db_session.execute(stmt).scalar_one_or_none() is not None
