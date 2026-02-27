@@ -1,12 +1,10 @@
 # Sentinel NDVI Pipeline
 
-A backend application that uses the Sentinel Hub API to periodically fetch NDVI
-(Normalized Difference Vegetation Index) data for farm boundaries (called **parcels** in the application).
-
+This application periodically ingests NDVI (Normalized Difference Vegetation Index) data from the Sentinel Hub API for farm boundaries (called **parcels** in the application).
 The data is stored in a relational database, aggregated into time series, and used to generate
 basic alerts such as vegetation decline, sustained low NDVI, or drought_risk.
 
-The Sentinel Hub API uses OAuth2 Authentication and requires that you have an access token. to get your credentials you can:
+The Sentinel Hub API uses OAuth2 authentication and requires an access token. To get your credentials, you can:
 1.  **Register:** Create an account at [Sentinel Hub / Planet](https://login.planet.com).
 2.  **OAuth Client:** Navigate to the User Settings to create a new OAuth Client.
 3.  **Credentials:** Obtain your `CLIENT_ID` and `CLIENT_SECRET`. 
@@ -64,7 +62,7 @@ SENTINEL_HUB_CLIENT_SECRET=your_client_secret_here
 docker compose up
 ```
 
-it will start all services including the database (PostgreSQL with PostGIS), API server. you will have to start the dashboard if you want because its optional service by running ```docker compose up dashboard```.
+It will start all services including the database (PostgreSQL with PostGIS) and the API server. You can start the optional dashboard with `docker compose up dashboard`.
 
 ### Option B: Using uv
 
