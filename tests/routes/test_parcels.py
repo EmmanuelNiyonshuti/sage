@@ -65,6 +65,8 @@ async def test_create_parcel(async_client: AsyncClient):
     response = await async_client.post(
         f"{api_url_prefix}/parcels", json=payload, params={"trigger_backfill": False}
     )
+    print(dir(response))
+    print(response.text)
     assert response.status_code == 201
     assert {
         "name": "Nyamata Block A",

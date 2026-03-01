@@ -9,9 +9,9 @@ from httpx import AsyncClient
 async def test_ingestion_scheduler_runs(mock_job, async_client: AsyncClient):
     from app.scheduler.ingestion_scheduler import ingestion_scheduler
 
-    ingestion_scheduler.start({"seconds": 1})
+    await ingestion_scheduler.start({"seconds": 1})
     for job in ingestion_scheduler.get_jobs():
-        job.func()
+        await job.func()
     assert mock_job.called
     assert ingestion_scheduler.is_running()
 
@@ -21,9 +21,9 @@ async def test_ingestion_scheduler_runs(mock_job, async_client: AsyncClient):
 async def test_timeseries_scheduler_runs(mock_job, async_client: AsyncClient):
     from app.scheduler.time_series_scheduler import time_series_scheduler
 
-    time_series_scheduler.start({"seconds": 1})
+    await time_series_scheduler.start({"seconds": 1})
     for job in time_series_scheduler.get_jobs():
-        job.func()
+        await job.func()
     assert mock_job.called
     assert time_series_scheduler.is_running()
 
@@ -33,8 +33,8 @@ async def test_timeseries_scheduler_runs(mock_job, async_client: AsyncClient):
 async def test_generate_alerts_scheduler_runs(mock_job, async_client: AsyncClient):
     from app.scheduler.alerts_scheduler import generate_alerts_scheduler
 
-    generate_alerts_scheduler.start({"seconds": 1})
+    await generate_alerts_scheduler.start({"seconds": 1})
     for job in generate_alerts_scheduler.get_jobs():
-        job.func()
+        await job.func()
     assert mock_job.called
     assert generate_alerts_scheduler.is_running()
