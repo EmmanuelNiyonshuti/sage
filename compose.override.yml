@@ -11,7 +11,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  web:
+  backend:
     environment: # override db host/port for container-to-container networking (dev & test)
       - DEV_POSTGRES_HOST=db
       - TEST_POSTGRES_HOST=db
@@ -27,7 +27,7 @@ services:
 
   dashboard:
     environment:
-    - API_BASE_URL=http://web:8000/api/v1
+    - API_BASE_URL=http://backend:8000/api/v1
     volumes:
       - ./tools:/sage/tools
     command: uv run streamlit run tools/visualizer/streamlit_app.py --server.port 8501 --server.address 0.0.0.0

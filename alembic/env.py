@@ -33,10 +33,11 @@ target_metadata = Base.metadata
 # ... etc.
 
 
+# Ignore PostGIS system tables(https://postgis.net/docs/using_postgis_dbmanagement.html#spatial_ref_sys)
 def include_object(object, name, type_, reflected, compare_to):
-    # Ignore PostGIS system tables
-    if type_ == "table" and name == "spatial_ref_sys":
-        return False
+    if type_ == "table":
+        # only manage tables that are defined in our models
+        return name in target_metadata.tables
     return True
 
 

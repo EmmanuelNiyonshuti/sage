@@ -65,7 +65,8 @@ def upgrade() -> None:
     #     ["geometry"],
     #     unique=False,
     #     postgresql_using="gist",
-    # ) already exists!
+    # ) this already exists!
+
     op.create_table(
         "alerts",
         sa.Column("uid", sa.String(length=36), nullable=False),

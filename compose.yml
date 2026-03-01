@@ -10,9 +10,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
       # - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  web:
+  backend:
     build: .
-    container_name: sg-web
+    container_name: sg-backend
     ports:
       - "8000:8000"
     env_file:
@@ -30,7 +30,7 @@ services:
     env_file:
       - .env
     depends_on:
-      - web
+      - backend
       - db
     restart: unless-stopped
 
