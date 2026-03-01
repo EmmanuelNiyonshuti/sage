@@ -58,7 +58,7 @@ async def create_parcel(
             logger.info(f"Queued backfill job for parcel {parcel.name}")
         return ParcelResponse.model_validate(parcel)
     except Exception as e:
-        db_session.rollback()
+        await db_session.rollback()
         logger.exception(f"Failed to create parcel, {str(e)}")
         raise HTTPException(
             status_code=500,
