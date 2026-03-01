@@ -41,7 +41,7 @@ class TimeSeries(Base):
         sa.Boolean, default=False, comment="Flagged as statistically unusual"
     )
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=datetime.now(UTC), nullable=False
+        sa.DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
     parcel: so.Mapped["Parcel"] = so.relationship(back_populates="time_series")  # noqa
     __table_args__ = (

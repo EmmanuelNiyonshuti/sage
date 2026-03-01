@@ -45,7 +45,7 @@ class RasterStats(Base):
         sa.Integer, comment="Number of valid pixels processed"
     )
     processed_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=datetime.now(UTC), nullable=False
+        sa.DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
     raw_metadata: so.Mapped[dict | None] = so.mapped_column(
         JSONB, comment="Store full response for debugging"

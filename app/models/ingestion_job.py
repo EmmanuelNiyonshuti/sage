@@ -74,15 +74,17 @@ class IngestionJob(Base):
     )
 
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=datetime.now(UTC), nullable=False
+        sa.DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 
     started_at: so.Mapped[datetime | None] = so.mapped_column(
-        sa.DateTime, nullable=True, comment="When job execution started"
+        sa.DateTime(timezone=True), nullable=True, comment="When job execution started"
     )
 
     completed_at: so.Mapped[datetime | None] = so.mapped_column(
-        sa.DateTime, nullable=True, comment="When job finished (success or failure)"
+        sa.DateTime(timezone=True),
+        nullable=True,
+        comment="When job finished (success or failure)",
     )
 
     job_type: so.Mapped[str] = so.mapped_column(

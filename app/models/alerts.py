@@ -34,7 +34,10 @@ class Alerts(Base):
     message: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
 
     detected_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=datetime.now(UTC), nullable=False, index=True
+        sa.DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
     )
 
     status: so.Mapped[str | None] = so.mapped_column(
@@ -44,7 +47,9 @@ class Alerts(Base):
         comment="active, resolved, dismissed",
     )
 
-    resolved_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime)
+    resolved_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True)
+    )
 
     alerts_data: so.Mapped[dict | None] = so.mapped_column(
         JSONB, comment="Store alert-specific data like thresholds, values, etc."

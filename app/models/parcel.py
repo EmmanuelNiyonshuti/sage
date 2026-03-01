@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
-from geoalchemy2 import Geography, Geometry
+from geoalchemy2 import Geometry
 
 from app.core.database import Base
 
@@ -37,12 +37,12 @@ class Parcel(Base):
     )
 
     created_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime, default=datetime.now(UTC), nullable=False
+        sa.DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at: so.Mapped[datetime] = so.mapped_column(
-        sa.DateTime,
-        default=datetime.now(UTC),
-        onupdate=datetime.now(UTC),
+        sa.DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         nullable=False,
     )
     is_active: so.Mapped[bool] = so.mapped_column(
@@ -50,7 +50,7 @@ class Parcel(Base):
     )
 
     last_data_synced_at: so.Mapped[datetime | None] = so.mapped_column(
-        sa.DateTime,
+        sa.DateTime(timezone=True),
         nullable=True,
         comment="Timestamp of last successful data sync(any job)",
     )
@@ -58,7 +58,7 @@ class Parcel(Base):
         sa.Date, nullable=True, comment="Most recent acquisition_date in raster_stats"
     )
     next_sync_scheduled_at: so.Mapped[datetime | None] = so.mapped_column(
-        sa.DateTime,
+        sa.DateTime(timezone=True),
         nullable=True,
         index=True,
         comment="When to schedule next ingestion job",
@@ -82,12 +82,16 @@ class Parcel(Base):
     )
 
 
-@sa.event.listens_for(Parcel, "before_insert")
-# @sa.event.listens_for(Parcel, "before_update")
-def calculate_parcel_area(mapper, connection, target):
-    """Calculate area in hectares from geometry."""
-    if target.geometry is not None:
-        result = connection.execute(
-            sa.select(sa.func.ST_Area(sa.cast(target.geometry, Geography)) / 10000)
-        ).scalar()
-        target.area_hectares = round(float(result), 4) if result else None
+# #  be replaced by a trigger instead, was shifted to the database level, gotta run migrations to add the trigger and function, see alembic/versions/2025_12_06_1339-b06b792da046_initial_migration.py
+# @sa.event.listens_for(Parcel, "before_insert")
+# # @sa.event.listens_for(Parcel, "before_update")
+# def calculate_parcel_area(mapper, connection, target):
+#     """need to intercept before insert into parcels table and ask postgis to calculate real world area of a polygon geometry, and store it in hectares divides by 10_000 to get hectares (1 hectare = 10,000 sqm)
+
+
+#     """
+#     if target.geometry is not None:
+#         result = connection.execute(
+#             sa.select(sa.func.ST_Area(sa.cast(target.geometry, Geography)) / 10_000)
+#         ).scalar()
+#         target.area_hectares = round(float(result), 4) if result else None
