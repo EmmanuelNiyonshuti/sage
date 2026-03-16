@@ -32,13 +32,18 @@ class SentinelHubClient:
     ) -> dict[str, Any]:
         """
         Request statistics from Sentinel Hub Statistical API.
-        provide area of interest(parcel), time period(start and end date), evalscript
+        `Sentinel Hub statistical api` allows us to obtain statistical data from satellite imagery without downloading the images.
+
+        We provide area of interest(a parcel boundary), time period(start and end date),
+        evalscript(a javascript snippet that tells sentinel hub which bands to use and how to compute the output index)
+
+
         Args:
-            geometry: GeoJSON geometry (Polygon)
-            start_date: Start of time range
-            end_date: End of time range
-            evalscript: JavaScript evalscript for processing
-            max_cloud_coverage: Maximum acceptable cloud coverage percentage
+            geometry: GeoJSON geometry (Polygon), The farm boundary
+            start_date: Start of  the time window
+            end_date: End of of  the time window
+            evalscript: JavaScript evalscript snippet for processing
+            max_cloud_coverage: Maximum acceptable cloud coverage percentage default: 30 skip images where >30% of sky is cloudy
 
         Returns:
             Raw JSON response from Statistical API
@@ -77,7 +82,10 @@ class SentinelHubClient:
         max_cloud_coverage: int,
     ) -> dict[str, Any]:
         """
-        Build the JSON payload for Statistical API request.
+        Build the JSON payload for Statistical API request to get data from `sentinel-2-l2a`.
+
+        Sentinel-2 is a family of satellites(currently S2A && S2B) that orbits earth and photograph land surfaces every ~5 days.
+        These sattelites are capable of capturing  `near-infrared (NIR)` and `shortwave infrared (SWIR)` light and we need those for finding ndvi.
 
         Args:
             geometry: GeoJSON geometry

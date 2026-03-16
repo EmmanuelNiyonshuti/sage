@@ -1,7 +1,14 @@
 """Evalscripts for Sentinel Hub processing."""
 
-# NDVI Evalscript
-# Calculates Normalized Difference Vegetation Index
+"""
+
+Healthy vegetations absorbs `Red light` and reflects `Near Infrared` , high NDVI reaches (~ 0.6 - 0.9) 
+Bare soil and drought stressed crops range in (~0.1 - 0.3)
+Water, concrete range near zero or negative values
+NDVI(Normalized Difference Vegetation Index) = (NIR - Red) / (NIR + Red)
+NIR(Near infrared) Red(Red light)
+B04= Red, B08 Near infrared
+"""
 NDVI_EVALSCRIPT = """
 //VERSION=3
 
