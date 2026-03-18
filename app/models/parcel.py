@@ -1,11 +1,21 @@
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from geoalchemy2 import Geometry
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from .alerts import Alerts
+    from .ingestion_job import IngestionJob
+    from .raster_stats import RasterStats
+    from .time_series import TimeSeries
+    from .user import User
 
 
 class Parcel(Base):
@@ -67,17 +77,24 @@ class Parcel(Base):
     auto_sync_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, default=True, nullable=True
     )
+    owner_id: so.Mapped[str] = so.mapped_column(
+        sa.String(36),
+        sa.ForeignKey("users.uid", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    owner: so.Mapped[User] = so.relationship(back_populates="parcels")
 
-    raster_stats: so.Mapped[list["RasterStats"]] = so.relationship(  # noqa: F821
+    raster_stats: so.Mapped[list[RasterStats]] = so.relationship(
         back_populates="parcel", cascade="all, delete-orphan"
     )
-    ingestion_jobs: so.Mapped[list["IngestionJob"]] = so.relationship(  # noqa
+    ingestion_jobs: so.Mapped[list[IngestionJob]] = so.relationship(
         back_populates="parcel", cascade="all, delete-orphan"
     )
-    time_series: so.Mapped[list["TimeSeries"]] = so.relationship(  # noqa: F821
+    time_series: so.Mapped[list[TimeSeries]] = so.relationship(
         back_populates="parcel", cascade="all, delete-orphan"
     )
-    alerts: so.Mapped[list["Alerts"]] = so.relationship(  # noqa: F821
+    alerts: so.Mapped[list[Alerts]] = so.relationship(
         back_populates="parcel", cascade="all, delete-orphan"
     )
 

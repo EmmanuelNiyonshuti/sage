@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from .parcel import Parcel
 
 
 class TimeSeries(Base):
@@ -43,7 +49,7 @@ class TimeSeries(Base):
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
-    parcel: so.Mapped["Parcel"] = so.relationship(back_populates="time_series")  # noqa
+    parcel: so.Mapped[Parcel] = so.relationship(back_populates="time_series")  # noqa
     __table_args__ = (
         sa.UniqueConstraint(
             "parcel_id",

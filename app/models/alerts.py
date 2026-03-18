@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from .parcel import Parcel
 
 
 class Alerts(Base):
@@ -55,7 +61,7 @@ class Alerts(Base):
         JSONB, comment="Store alert-specific data like thresholds, values, etc."
     )
 
-    parcel: so.Mapped["Parcel"] = so.relationship(back_populates="alerts")  # noqa 821
+    parcel: so.Mapped[Parcel] = so.relationship(back_populates="alerts")  # noqa 821
 
     __table_args__ = (
         sa.Index("idx_alerts_status", "status"),

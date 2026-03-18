@@ -1,9 +1,19 @@
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.utils import geojson_to_shapely, shapely_to_wkbelement, wkb_to_geojson
+
+
+class UserIn(BaseModel):
+    model_config = ConfigDict(extra="allow", from_attributes=True)
+    email: EmailStr
+
+
+class UserOut(UserIn):
+    uid: str
+    api_key: str
 
 
 class GeometrySchema(BaseModel):
@@ -46,6 +56,7 @@ class GeometrySchema(BaseModel):
 class ParcelCreate(BaseModel):
     """Schema for creating a new field."""
 
+    model_config = ConfigDict(extra="allow")  # want to add owner_id on an instace
     name: Annotated[str, Field(min_length=5, max_length=255)]
     geometry: Any  # set to Any because of the before convert_geojson_to_wkb validator
 

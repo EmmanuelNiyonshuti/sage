@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from .parcel import Parcel
 
 
 class IngestionJob(Base):
@@ -100,7 +106,7 @@ class IngestionJob(Base):
     execution_metadata: so.Mapped[dict | None] = so.mapped_column(
         JSONB, comment="Full execution context, API responses, etc."
     )
-    parcel: so.Mapped["Parcel"] = so.relationship(back_populates="ingestion_jobs")  # noqa
+    parcel: so.Mapped[Parcel] = so.relationship(back_populates="ingestion_jobs")  # noqa
 
     __table_args__ = (
         sa.Index("idx_jobs_status_created", "status", "created_at"),

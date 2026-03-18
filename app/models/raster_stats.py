@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 import uuid
 from datetime import UTC, date, datetime
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from sqlalchemy.dialects.postgresql import JSONB
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from .parcel import Parcel
 
 
 class RasterStats(Base):
@@ -50,7 +56,7 @@ class RasterStats(Base):
     raw_metadata: so.Mapped[dict | None] = so.mapped_column(
         JSONB, comment="Store full response for debugging"
     )
-    parcel: so.Mapped["Parcel"] = so.relationship(back_populates="raster_stats")  # noqa
+    parcel: so.Mapped[Parcel] = so.relationship(back_populates="raster_stats")
     data_source_id: so.Mapped[str] = so.mapped_column(
         sa.String(36), sa.ForeignKey("data_sources.uid"), nullable=False, index=True
     )
