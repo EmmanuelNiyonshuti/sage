@@ -3,9 +3,8 @@ import logging
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from pydantic import ValidationError
 
-from app.api.deps import SessionDep
-from app.crud import find_parcel_by_id, list_parcels
-from app.models import Parcel
+from app.api.crud import add_parcel_boundary, find_parcel_by_id, list_parcels
+from app.api.deps import CurrentUser, SessionDep
 from app.models.schemas import ParcelCreate, ParcelListResponse, ParcelResponse
 from app.utils import (
     trigger_backfill_for_parcel,
@@ -15,6 +14,7 @@ router = APIRouter(tags=["Parcels"])
 logger = logging.getLogger(__name__)
 
 
+# I need a valid api key in the headers to be able to create a parcel
 @router.post(
     "/parcels",
     response_model=ParcelResponse,
@@ -23,47 +23,33 @@ logger = logging.getLogger(__name__)
     description="Create a new parcel and trigger automatic data backfill",
 )
 async def create_parcel(
-    parcel_data: ParcelCreate,
     db_session: SessionDep,
+    user: CurrentUser,
+    parcel_data: ParcelCreate,
     background_tasks: BackgroundTasks,
     trigger_backfill: bool = Query(
         True, description="Automatically trigger historical data backfill"
     ),
 ):
     """
-    Create a new parcel with geometry.
+    Add a parcel boundary
 
-    Automatically triggers a background job to fetch historical satellite data
+    It will automatically trigger a background job for this new added parcel to fetch historical satellite data
     (default: last 90 days).
     """
-    try:
-        parcel = Parcel(**parcel_data.model_dump())
-    except ValidationError as e:
-        logger.exception(e)
-        raise HTTPException(
-            status_code=400,
-            detail="Failed validating request data for adding parcel, please try again",
+
+    parcel_data.owner_id = user.uid
+    parcel_data = parcel_data.model_dump()
+    new_parcel = await add_parcel_boundary(db_session, parcel_data)
+    logger.info(f"Created parcel: {new_parcel.uid} - {new_parcel.name}")
+    if trigger_backfill:
+        background_tasks.add_task(
+            trigger_backfill_for_parcel,
+            new_parcel.uid,
+            lookback_days=90,
         )
-    try:
-        db_session.add(parcel)
-        await db_session.commit()
-        await db_session.refresh(parcel)
-        logger.info(f"Created parcel: {parcel.uid} - {parcel.name}")
-        if trigger_backfill:
-            background_tasks.add_task(
-                trigger_backfill_for_parcel,
-                parcel.uid,
-                lookback_days=90,
-            )
-            logger.info(f"Queued backfill job for parcel {parcel.name}")
-        return ParcelResponse.model_validate(parcel)
-    except Exception as e:
-        await db_session.rollback()
-        logger.exception(f"Failed to create parcel, {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"an error occured adding a parcel, please try again. {e}",
-        )
+        logger.info(f"Queued backfill job for parcel {new_parcel.name}")
+    return ParcelResponse.model_validate(new_parcel)
 
 
 @router.get(
@@ -75,6 +61,7 @@ async def create_parcel(
 )
 async def get_parcels(
     db_session: SessionDep,
+    user: CurrentUser,
     limit: int = Query(50, ge=1, le=100, description="Number of results to return"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     is_active: bool | None = Query(None, description="Filter by active status"),
@@ -85,6 +72,7 @@ async def get_parcels(
 ):
     try:
         parcels, total = await list_parcels(
+            user.uid,
             db_session,
             limit=limit,
             offset=offset,
@@ -116,8 +104,8 @@ async def get_parcels(
 
 
 @router.get("/{parcel_id}")
-async def get_parcel(parcel_id: str, db_session: SessionDep):
-    parcel = await find_parcel_by_id(parcel_id, db_session)
+async def get_parcel(parcel_id: str, user: CurrentUser, db_session: SessionDep):
+    parcel = await find_parcel_by_id(user.uid, parcel_id, db_session)
     if not parcel:
         raise HTTPException(
             status_code=404, detail=f"parcel with id {parcel_id} is not found"

@@ -4,8 +4,8 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import and_, desc, select
 
-from app.api.deps import SessionDep
-from app.crud import find_parcel_by_id
+from app.api.crud import find_parcel_by_id
+from app.api.deps import CurrentUser, SessionDep
 from app.models import RasterStats
 from app.models.schemas import (
     ParcelStatsListResponse,
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 )
 async def get_parcel_raw_stats(
     parcel_id: str,
+    user: CurrentUser,
     db_session: SessionDep,
     metric_type: str | None = Query(
         None, description="Filter by metric type (NDVI currently)"
@@ -34,7 +35,7 @@ async def get_parcel_raw_stats(
 ):
     logger.info(f"Getting stats for parcel {parcel_id}")
 
-    parcel = await find_parcel_by_id(parcel_id.strip(), db_session)
+    parcel = await find_parcel_by_id(user.uid, parcel_id.strip(), db_session)
     if not parcel:
         raise HTTPException(
             status_code=404, detail=f"Parcel with id {parcel_id} not found"

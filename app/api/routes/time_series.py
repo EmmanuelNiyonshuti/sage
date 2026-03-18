@@ -4,8 +4,8 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import and_, desc, select
 
-from app.api.deps import SessionDep
-from app.crud import find_parcel_by_id
+from app.api.crud import find_parcel_by_id
+from app.api.deps import CurrentUser, SessionDep
 from app.models import TimeSeries
 from app.models.schemas import TimeSeriesResponse, TimeSeriesStats
 
@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 )
 async def get_parcel_time_series_stats(
     parcel_id: str,
+    user: CurrentUser,
     db: SessionDep,
     metric_type: str = Query(
         "NDVI_avg", description="Filter by metric type (NDVI currently)"
@@ -36,7 +37,7 @@ async def get_parcel_time_series_stats(
 ):
     logger.info(f"Getting time series stats for parcel {parcel_id}")
 
-    parcel = await find_parcel_by_id(parcel_id, db)
+    parcel = await find_parcel_by_id(user.uid, parcel_id, db)
     if not parcel:
         raise HTTPException(
             status_code=404, detail=f"parcel with id {parcel_id} is not found"
