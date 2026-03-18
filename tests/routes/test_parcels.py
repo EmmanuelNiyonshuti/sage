@@ -36,24 +36,30 @@ def get_parcel_payload(
 
 
 async def create_parcel(
-    async_client: AsyncClient, trigger_backfill: bool = False, **payload_overrides
+    async_client: AsyncClient,
+    registered_user_api_key,
+    trigger_backfill: bool = False,
+    **payload_overrides,
 ) -> dict:
     payload = get_parcel_payload(**payload_overrides)
     response = await async_client.post(
         f"{api_url_prefix}/parcels",
         json=payload,
+        headers={"API-Key": registered_user_api_key},
         params={"trigger_backfill": trigger_backfill},
     )
     return response.json()
 
 
 @pytest.fixture()
-async def created_parcel(async_client: AsyncClient):
-    return await create_parcel(async_client, name="Kigali Trial Parcel")
+async def created_parcel(async_client: AsyncClient, registered_user_api_key):
+    return await create_parcel(
+        async_client, registered_user_api_key, name="Kigali Trial Parcel"
+    )
 
 
 @pytest.mark.anyio
-async def test_create_parcel(async_client: AsyncClient):
+async def test_create_parcel(async_client: AsyncClient, registered_user_api_key):
     payload = get_parcel_payload(
         name="Nyamata Block A",
         lat=-2.1824,
@@ -63,10 +69,11 @@ async def test_create_parcel(async_client: AsyncClient):
         irrigation_type="mixed",
     )
     response = await async_client.post(
-        f"{api_url_prefix}/parcels", json=payload, params={"trigger_backfill": False}
+        f"{api_url_prefix}/parcels",
+        json=payload,
+        params={"trigger_backfill": False},
+        headers={"API-Key": registered_user_api_key},
     )
-    print(dir(response))
-    print(response.text)
     assert response.status_code == 201
     assert {
         "name": "Nyamata Block A",
@@ -75,10 +82,53 @@ async def test_create_parcel(async_client: AsyncClient):
 
 
 @pytest.mark.anyio
-async def test_create_parcel_triggers_backfill(async_client: AsyncClient):
+async def test_create_parcel_no_api_key(async_client: AsyncClient):
+    payload = get_parcel_payload(
+        name="Nyamata Block B",
+        lat=-2.1823,
+        lon=30.3292,
+        crop_type="mongo",
+        soil_type="clay",
+        irrigation_type="mixed",
+    )
+    response = await async_client.post(
+        f"{api_url_prefix}/parcels",
+        json=payload,
+        params={"trigger_backfill": False},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_create_parcel_invalid_api_key(async_client: AsyncClient):
+    payload = get_parcel_payload(
+        name="Nyamata Block B",
+        lat=-2.1823,
+        lon=30.3292,
+        crop_type="mongo",
+        soil_type="clay",
+        irrigation_type="mixed",
+    )
+    response = await async_client.post(
+        f"{api_url_prefix}/parcels",
+        json=payload,
+        headers={"API-Key": "!api_key"},
+        params={"trigger_backfill": False},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.anyio
+async def test_create_parcel_triggers_backfill(
+    async_client: AsyncClient, registered_user_api_key
+):
     with patch("app.api.routes.parcels.trigger_backfill_for_parcel") as mocked_backfill:
         payload = get_parcel_payload(name="Test Block A", crop_type="wheat")
-        response = await async_client.post(f"{api_url_prefix}/parcels", json=payload)
+        response = await async_client.post(
+            f"{api_url_prefix}/parcels",
+            headers={"API-Key": registered_user_api_key},
+            json=payload,
+        )
 
         assert response.status_code == 201
         parcel_id = response.json()["uid"]
@@ -87,10 +137,11 @@ async def test_create_parcel_triggers_backfill(async_client: AsyncClient):
 
 @pytest.mark.anyio
 async def test_get_raw_parcel_stats(
-    async_client: AsyncClient, created_parcel: created_parcel
+    async_client: AsyncClient, created_parcel: created_parcel, registered_user_api_key
 ):
     response = await async_client.get(
-        f"{api_url_prefix}/{created_parcel['uid']}/raw-stats"
+        f"{api_url_prefix}/{created_parcel['uid']}/raw-stats",
+        headers={"API-Key": registered_user_api_key},
     )
     assert response.status_code == 200
     assert {
@@ -100,22 +151,35 @@ async def test_get_raw_parcel_stats(
 
 
 @pytest.mark.anyio
-async def test_get_parcel(async_client: AsyncClient, created_parcel: created_parcel):
-    response = await async_client.get(f"{api_url_prefix}/{created_parcel['uid']}")
+async def test_get_parcel(
+    async_client: AsyncClient, created_parcel: created_parcel, registered_user_api_key
+):
+    response = await async_client.get(
+        f"{api_url_prefix}/{created_parcel['uid']}",
+        headers={"API-Key": registered_user_api_key},
+    )
     assert response.status_code == 200
 
 
 @pytest.mark.anyio
-async def test_get_parcel_not_exists(async_client: AsyncClient):
-    response = await async_client.get(f"{api_url_prefix}/parcels/12344")
+async def test_get_parcel_not_exists(
+    async_client: AsyncClient, registered_user_api_key
+):
+    response = await async_client.get(
+        f"{api_url_prefix}/parcels/12344",
+        headers={"API-Key": registered_user_api_key},
+    )
     assert response.status_code == 404
 
 
 @pytest.mark.anyio
 async def test_get_timeseries_parcel_stats(
-    async_client: AsyncClient, created_parcel: created_parcel
+    async_client: AsyncClient, created_parcel: created_parcel, registered_user_api_key
 ):
-    response = await async_client.get(f"{api_url_prefix}/{created_parcel['uid']}/stats")
+    response = await async_client.get(
+        f"{api_url_prefix}/{created_parcel['uid']}/stats",
+        headers={"API-Key": registered_user_api_key},
+    )
     assert response.status_code == 200
     assert {
         "parcel_id": created_parcel["uid"],
