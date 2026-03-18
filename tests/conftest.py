@@ -46,16 +46,31 @@ def db():
 @pytest.fixture()
 async def db_session(db) -> Generator[AsyncSession, None, None]:
     """
-    we need to use a separate session for tests with a separate async engine
-    so setup and teardown fixture(db) uses a sync engine
+    we need to use a separate session for tests with a separate async engine.
+    setup and teardown fixture(db) uses a sync engine
     """
     async_engine = create_async_engine(str(config.DATABASE_URL))
-    AsyncTestSessionLocal = async_sessionmaker(
-        bind=async_engine, class_=AsyncSession, expire_on_commit=False
-    )
 
-    async with AsyncTestSessionLocal() as session:
-        yield session
+    # We open a connection and start our own transaction on it.
+    # We then bind the session to that connection instead of the engine.
+    # Because the session is joining a connection that already has an open
+    # transaction, it becomes a guest meaning it can read and write, but its
+    # commit() calls do not issue a real COMMIT to the database.
+    # This keeps our outer transaction open so that at the end of each test
+    # we can call connection.rollback(), which undoes everything the test did
+    # and leaves the database clean for the next test.
+    async with async_engine.connect() as connection:
+        await connection.begin()
+
+        AsyncTestSessionLocal = async_sessionmaker(
+            bind=connection,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+
+        async with AsyncTestSessionLocal() as session:
+            yield session
+        await connection.rollback()
 
 
 @pytest.fixture()
@@ -71,3 +86,11 @@ async def async_client(db_session: AsyncSession) -> Generator[TestClient, None, 
     ) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+async def registered_user_api_key(async_client: AsyncClient):
+    response = await async_client.post(
+        "/api/v1/register", json={"email": "john@gmail.com"}
+    )
+    return response.json()["api_key"]
