@@ -6,7 +6,7 @@ from .config import config
 async_engine = create_async_engine(str(config.DATABASE_URL))
 
 async_session_factory = async_sessionmaker(
-    bind=async_engine, autoflush=False, autocommit=False
+    bind=async_engine, autoflush=False, autocommit=False, expire_on_commit=False
 )
 
 
