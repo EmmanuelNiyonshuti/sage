@@ -27,7 +27,9 @@ async def list_parcels(
     search: str | None = None,
 ) -> tuple[list[Parcel], int]:
     query = select(Parcel).where(Parcel.owner_id == owner_id)
-    count_query = select(func.count(Parcel.uid))
+    count_query = (
+        select(func.count()).select_from(Parcel).where(Parcel.owner_id == owner_id)
+    )
     filters = []
 
     if is_active is not None:
@@ -42,8 +44,8 @@ async def list_parcels(
     if filters:
         query = query.where(*filters)
         count_query = count_query.where(*filters)
-    result = await db_session.execute(count_query)
-    total = result.scalar() or 0
+    total = await db_session.scalar(count_query)
+
     query = query.order_by(Parcel.created_at.desc()).limit(limit).offset(offset)
 
     parcels = list((await db_session.execute(query)).scalars().all())

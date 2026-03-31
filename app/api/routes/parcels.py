@@ -14,7 +14,6 @@ router = APIRouter(tags=["Parcels"])
 logger = logging.getLogger(__name__)
 
 
-# I need a valid api key in the headers to be able to create a parcel
 @router.post(
     "/parcels",
     response_model=ParcelResponse,
@@ -31,13 +30,6 @@ async def create_parcel(
         True, description="Automatically trigger historical data backfill"
     ),
 ):
-    """
-    Add a parcel boundary
-
-    It will automatically trigger a background job for this new added parcel to fetch historical satellite data
-    (default: last 90 days).
-    """
-
     parcel_data.owner_id = user.uid
     parcel_data = parcel_data.model_dump()
     new_parcel = await add_parcel_boundary(db_session, parcel_data)
@@ -72,8 +64,8 @@ async def get_parcels(
 ):
     try:
         parcels, total = await list_parcels(
-            user.uid,
             db_session,
+            user.uid,
             limit=limit,
             offset=offset,
             is_active=is_active,
